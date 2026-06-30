@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Enterprise Workforce Management Platform with AI Operations Assistant
 1. Project Overview
 1.1 Introduction
@@ -1337,3 +1338,6 @@ Acceptance Criteria
  Tasks assigned
  Progress tracked
  Dashboard updated
+=======
+# enterprise-workforce-ai-platform
+>>>>>>> 8467e8ae3876d6a069abd23ccd245277e825b91f
