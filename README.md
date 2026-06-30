@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-Enterprise Workforce Management Platform with AI Operations Assistant
+# Enterprise Workforce Management Platform with AI Operations Assistant
 1. Project Overview
 1.1 Introduction
 Organizations today manage hundreds or even thousands of employees across multiple departments, projects, and office locations. As businesses grow, managing employee information manually using spreadsheets, emails, and paper documents becomes inefficient and error-prone.
