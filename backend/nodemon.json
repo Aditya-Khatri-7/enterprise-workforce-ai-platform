@@ -1,0 +1,12 @@
+{
+  "ignore": [
+    "test_*.js",
+    "list_users.js",
+    "clear_db.js",
+    "set_org_pwd.js",
+    "seed-org-admin.js",
+    "node_modules/*"
+  ],
+  "watch": ["controllers", "routes", "models", "middlewares", "utils", "server.js"],
+  "ext": "js,json"
+}

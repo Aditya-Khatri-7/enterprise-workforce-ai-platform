@@ -1,0 +1,266 @@
+const bcrypt = require('bcrypt');
+const User = require('../models/User');
+const RefreshToken = require('../models/RefreshToken');
+const AuditLog = require('../models/AuditLog');
+const Otp = require('../models/Otp');
+const { generateAccessToken, generateRefreshToken, verifyToken } = require('../utils/jwt');
+const { sendOtpEmail } = require('../utils/emailService');
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+};
+
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const user = await User.findOne({ email }).populate('role');
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    if (user.isLocked || !user.isActive) {
+      return res.status(403).json({ error: 'Account is locked or inactive' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      user.failedLoginAttempts += 1;
+      if (user.failedLoginAttempts >= 5) {
+        user.isLocked = true;
+      }
+      await user.save();
+      
+      await AuditLog.create({
+        action: 'FAILED_LOGIN',
+        userRef: user._id,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Reset failed attempts
+    user.failedLoginAttempts = 0;
+    await user.save();
+
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    // Save refresh token
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await RefreshToken.create({
+      token: refreshToken,
+      userRef: user._id,
+      expiresAt
+    });
+
+    await AuditLog.create({
+      action: 'LOGIN',
+      userRef: user._id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 }); // 15 mins
+    res.cookie('refreshToken', refreshToken, cookieOptions);
+
+    res.json({
+      message: 'Login successful',
+      user: {
+        id: user._id,
+        email: user.email,
+        username: user.username,
+        role: user.role.name,
+        mustChangePassword: user.mustChangePassword
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Server error during login' });
+  }
+};
+
+const logout = async (req, res) => {
+  try {
+    const { refreshToken } = req.cookies;
+
+    if (refreshToken) {
+      await RefreshToken.findOneAndUpdate({ token: refreshToken }, { revoked: true });
+    }
+
+    if (req.user) {
+      await AuditLog.create({
+        action: 'LOGOUT',
+        userRef: req.user._id,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+    }
+
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error during logout' });
+  }
+};
+
+const refresh = async (req, res) => {
+  try {
+    const { refreshToken } = req.cookies;
+
+    if (!refreshToken) {
+      return res.status(401).json({ error: 'No refresh token provided' });
+    }
+
+    const decoded = verifyToken(refreshToken);
+    if (!decoded) {
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+
+    const storedToken = await RefreshToken.findOne({ token: refreshToken, revoked: false });
+    if (!storedToken || storedToken.expiresAt < new Date()) {
+      return res.status(401).json({ error: 'Refresh token expired or revoked' });
+    }
+
+    const user = await User.findById(decoded.userId).populate('role');
+    if (!user || user.isLocked || !user.isActive) {
+      return res.status(403).json({ error: 'Account issue' });
+    }
+
+    const newAccessToken = generateAccessToken(user);
+    res.cookie('accessToken', newAccessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
+
+    res.json({ message: 'Token refreshed successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error during token refresh' });
+  }
+};
+
+const me = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .select('-password -failedLoginAttempts')
+      .populate('role')
+      .populate('employeeRef');
+    
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error fetching profile' });
+  }
+};
+
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    const user = await User.findById(req.user._id);
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Incorrect current password' });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.mustChangePassword = false;
+    await user.save();
+
+    await AuditLog.create({
+      action: 'PASSWORD_CHANGE',
+      userRef: user._id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error during password change' });
+  }
+};
+
+
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Generate 6 digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store OTP in database
+    await Otp.deleteMany({ email }); // Delete old OTPs for this email
+    await Otp.create({ email, otp: otpCode });
+
+    // Send OTP via shared email service
+    await sendOtpEmail({ to: email, otpCode });
+
+    res.json({ message: 'OTP sent to email successfully' });
+  } catch (error) {
+    console.error('Error in forgotPassword:', error);
+    res.status(500).json({ error: 'Failed to process request' });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    
+    // Verify OTP
+    const storedOtp = await Otp.findOne({ email, otp });
+    if (!storedOtp) {
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+    
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    
+    // Delete OTP after successful reset
+    await Otp.deleteMany({ email });
+
+    await AuditLog.create({
+      action: 'PASSWORD_CHANGE',
+      userRef: user._id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    console.error('Error in resetPassword:', error);
+    res.status(500).json({ error: 'Server error resetting password' });
+  }
+};
+
+module.exports = {
+  login,
+  logout,
+  refresh,
+  me,
+  changePassword,
+  forgotPassword,
+  resetPassword
+};

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forgot Password</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Step 1: User ID / Email -->
+        <div id="step-1" class="step active">
+            <h2>Forgot Password</h2>
+            <p>Enter your User ID (Email) to receive a verification code.</p>
+            <div class="input-group">
+                <input type="email" id="email-input" placeholder="user@example.com" required>
+            </div>
+            <button id="send-otp-btn" class="btn-primary">Send OTP</button>
+            <div id="step-1-error" class="error-msg"></div>
+        </div>
+
+        <!-- Step 2: OTP Verification -->
+        <div id="step-2" class="step">
+            <h2>Verify OTP</h2>
+            <p>We've sent a 6-digit code to <span id="display-email"></span>.</p>
+            
+            <div class="otp-container">
+                <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+            </div>
+
+            <button id="verify-otp-btn" class="btn-primary">Verify Code</button>
+            <div id="step-2-error" class="error-msg"></div>
+            <p class="resend-text">Didn't receive code? <a href="#" id="resend-link">Resend</a></p>
+        </div>
+
+        <!-- Step 3: Reset Password -->
+        <div id="step-3" class="step">
+            <h2>Set New Password</h2>
+            <p>Please enter your new password below.</p>
+            <div class="input-group">
+                <input type="password" id="new-password" placeholder="New Password" required>
+            </div>
+            <div class="input-group">
+                <input type="password" id="confirm-password" placeholder="Confirm Password" required>
+            </div>
+            <button id="reset-password-btn" class="btn-primary">Change Password</button>
+            <div id="step-3-error" class="error-msg"></div>
+        </div>
+
+        <!-- Step 4: Success -->
+        <div id="step-4" class="step">
+            <div class="success-icon">✓</div>
+            <h2>Password Updated!</h2>
+            <p>Your password has been changed successfully.</p>
+            <button class="btn-primary" onclick="location.reload()">Back to Login</button>
+        </div>
+
+        <!-- Loader overlay -->
+        <div id="loader" class="loader-overlay hidden">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
