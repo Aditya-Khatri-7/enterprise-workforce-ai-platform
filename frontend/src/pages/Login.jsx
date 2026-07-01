@@ -1,14 +1,20 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import ReCAPTCHA from 'react-google-recaptcha';
 import { AuthContext } from '../context/AuthContext';
+
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
 const Login = () => {
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm();
   const { login, user } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
+  const recaptchaRef = useRef(null);
+  const [recaptchaToken, setRecaptchaToken] = useState(null);
+  const [recaptchaError, setRecaptchaError] = useState('');
 
   const from = location.state?.from?.pathname || '/dashboard';
 
@@ -19,13 +25,30 @@ const Login = () => {
     }
   }, [user, navigate, from]);
 
+  const handleRecaptchaChange = (token) => {
+    setRecaptchaToken(token);
+    setRecaptchaError('');
+  };
+
+  const handleRecaptchaExpired = () => {
+    setRecaptchaToken(null);
+  };
+
   const onSubmit = async (data) => {
+    if (!recaptchaToken) {
+      setRecaptchaError('Please complete the reCAPTCHA verification.');
+      return;
+    }
+
     try {
-      await login(data);
+      await login({ ...data, recaptchaToken });
       toast.success('Logged in successfully!');
       navigate(from, { replace: true });
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to login');
+      // Reset reCAPTCHA on failure so user must re-verify
+      recaptchaRef.current?.reset();
+      setRecaptchaToken(null);
     }
   };
 
@@ -93,6 +116,19 @@ const Login = () => {
                 Forgot your password?
               </Link>
             </div>
+          </div>
+
+          {/* reCAPTCHA Widget */}
+          <div className="flex flex-col items-center">
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={RECAPTCHA_SITE_KEY}
+              onChange={handleRecaptchaChange}
+              onExpired={handleRecaptchaExpired}
+            />
+            {recaptchaError && (
+              <p className="mt-2 text-xs text-red-500">{recaptchaError}</p>
+            )}
           </div>
 
           <div>

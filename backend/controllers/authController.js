@@ -1,4 +1,6 @@
 const bcrypt = require('bcrypt');
+const https = require('https');
+const querystring = require('querystring');
 const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
 const AuditLog = require('../models/AuditLog');
@@ -13,9 +15,60 @@ const cookieOptions = {
   maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
 };
 
+/**
+ * Verify a reCAPTCHA v2 token with Google's API.
+ * Returns a promise that resolves to true if valid, false otherwise.
+ */
+const verifyRecaptcha = (token) => {
+  return new Promise((resolve) => {
+    const postData = querystring.stringify({
+      secret: process.env.RECAPTCHA_SECRET_KEY.trim(),
+      response: token,
+    });
+
+    const options = {
+      hostname: 'www.google.com',
+      path: '/recaptcha/api/siteverify',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve(parsed.success === true);
+        } catch {
+          resolve(false);
+        }
+      });
+    });
+
+    req.on('error', () => resolve(false));
+    req.write(postData);
+    req.end();
+  });
+};
+
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, recaptchaToken } = req.body;
+
+    // --- reCAPTCHA verification ---
+    if (!recaptchaToken) {
+      return res.status(400).json({ error: 'reCAPTCHA token is missing. Please complete the verification.' });
+    }
+
+    const isHuman = await verifyRecaptcha(recaptchaToken);
+    if (!isHuman) {
+      return res.status(400).json({ error: 'reCAPTCHA verification failed. Please try again.' });
+    }
+    // --- end reCAPTCHA verification ---
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
