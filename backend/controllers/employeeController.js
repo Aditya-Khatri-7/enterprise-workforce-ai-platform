@@ -5,14 +5,28 @@ const Role = require('../models/Role');
 const AuditLog = require('../models/AuditLog');
 const { sendWelcomeEmail } = require('../utils/emailService');
 
-// Utility to generate random passwords
+// Utility to generate random passwords meeting complexity rules (BR-02 and BR-03)
 const generatePassword = () => {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const nums = '0123456789';
+  const special = '!@#$%^&*';
+  const all = lower + upper + nums + special;
+  
   let password = '';
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  // Guarantee at least one of each character class
+  password += lower.charAt(Math.floor(Math.random() * lower.length));
+  password += upper.charAt(Math.floor(Math.random() * upper.length));
+  password += nums.charAt(Math.floor(Math.random() * nums.length));
+  password += special.charAt(Math.floor(Math.random() * special.length));
+  
+  // Fill the remaining length of 12
+  for (let i = 4; i < 12; i++) {
+    password += all.charAt(Math.floor(Math.random() * all.length));
   }
-  return password;
+  
+  // Shuffle the password characters to avoid a predictable pattern
+  return password.split('').sort(() => 0.5 - Math.random()).join('');
 };
 
 // Utility to generate Employee ID
@@ -173,13 +187,29 @@ const getEmployeeById = async (req, res) => {
 const updateEmployee = async (req, res) => {
   try {
     const { id } = req.params;
+    const { email } = req.body;
+
+    const employeeToUpdate = await Employee.findById(id);
+    if (!employeeToUpdate) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+
+    if (email && email !== employeeToUpdate.email) {
+      // Check if email already exists in User or Employee (excluding current employee)
+      const existingUser = await User.findOne({ email, employeeRef: { $ne: id } });
+      const existingEmployee = await Employee.findOne({ email, _id: { $ne: id } });
+      if (existingUser || existingEmployee) {
+        return res.status(400).json({ error: 'Email already exists' });
+      }
+
+      // Update associated User email as well to keep them in sync
+      if (employeeToUpdate.userRef) {
+        await User.findByIdAndUpdate(employeeToUpdate.userRef, { email });
+      }
+    }
     
     // For simplicity, just updating fields directly. In enterprise, restrict certain fields based on role.
     const employee = await Employee.findByIdAndUpdate(id, req.body, { new: true });
-    
-    if (!employee) {
-      return res.status(404).json({ error: 'Employee not found' });
-    }
 
     await AuditLog.create({
       action: 'EMPLOYEE_UPDATED',

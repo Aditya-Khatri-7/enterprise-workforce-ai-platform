@@ -6,8 +6,23 @@ const Employee = require('../models/Employee');
 const RefreshToken = require('../models/RefreshToken');
 const AuditLog = require('../models/AuditLog');
 const Otp = require('../models/Otp');
-const { generateAccessToken, generateRefreshToken, verifyToken } = require('../utils/jwt');
+const { generateAccessToken, generateRefreshToken, verifyToken, getAccessTokenExpiryMs } = require('../utils/jwt');
 const { sendOtpEmail } = require('../utils/emailService');
+
+const validatePassword = (password) => {
+  if (!password || password.length < 8) {
+    return 'Password must have a minimum length of 8 characters.';
+  }
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[!@#$%^&*(),.?":{}|<>_\-+=~`\[\]\\/;]/.test(password);
+  
+  if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
+    return 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.';
+  }
+  return null;
+};
 
 const cookieOptions = {
   httpOnly: true,
@@ -99,8 +114,12 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    if (user.isLocked || !user.isActive) {
-      return res.status(403).json({ error: 'Account is locked or inactive' });
+    if (user.isLocked) {
+      return res.status(403).json({ error: 'Account is locked. Please contact Admin' });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Account is inactive' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -146,7 +165,7 @@ const login = async (req, res) => {
       userAgent: req.headers['user-agent']
     });
 
-    res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 }); // 15 mins
+    res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: getAccessTokenExpiryMs() }); // matching config
     res.cookie('refreshToken', refreshToken, cookieOptions);
 
     // Fetch the full user with populated refs so the frontend has everything it needs
@@ -215,12 +234,18 @@ const refresh = async (req, res) => {
     }
 
     const user = await User.findById(decoded.userId).populate('role');
-    if (!user || user.isLocked || !user.isActive) {
-      return res.status(403).json({ error: 'Account issue' });
+    if (!user) {
+      return res.status(403).json({ error: 'User not found' });
+    }
+    if (user.isLocked) {
+      return res.status(403).json({ error: 'Account is locked. Please contact Admin' });
+    }
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Account is inactive' });
     }
 
     const newAccessToken = generateAccessToken(user);
-    res.cookie('accessToken', newAccessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
+    res.cookie('accessToken', newAccessToken, { ...cookieOptions, maxAge: getAccessTokenExpiryMs() });
 
     res.json({ message: 'Token refreshed successfully' });
   } catch (error) {
@@ -247,6 +272,11 @@ const changePassword = async (req, res) => {
     
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    const pwdError = validatePassword(newPassword);
+    if (pwdError) {
+      return res.status(400).json({ error: pwdError });
     }
 
     const user = await User.findById(req.user._id);
@@ -303,6 +333,11 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
+
+    const pwdError = validatePassword(newPassword);
+    if (pwdError) {
+      return res.status(400).json({ error: pwdError });
+    }
     
     // Verify OTP
     const storedOtp = await Otp.findOne({ email, otp });
