@@ -31,8 +31,17 @@ const generatePassword = () => {
 
 // Utility to generate Employee ID
 const generateEmployeeId = async () => {
+  const lastEmployee = await Employee.findOne().sort({ employeeId: -1 });
+  if (!lastEmployee) {
+    return 'EMP0001';
+  }
+  const match = lastEmployee.employeeId.match(/EMP(\d+)/);
+  if (match) {
+    const nextNumber = parseInt(match[1], 10) + 1;
+    return `EMP${String(nextNumber).padStart(4, '0')}`;
+  }
   const count = await Employee.countDocuments();
-  return `EMP${String(count + 1).padStart(4, '0')}`; // e.g., EMP0001
+  return `EMP${String(count + 1).padStart(4, '0')}`;
 };
 
 const createEmployee = async (req, res) => {
@@ -69,6 +78,7 @@ const createEmployee = async (req, res) => {
       username,
       password: hashedPassword,
       role: role._id,
+      organization: req.user?.organization || null,
       mustChangePassword: true
     });
     await user.save();
@@ -136,13 +146,23 @@ const createEmployee = async (req, res) => {
 
 const getEmployees = async (req, res) => {
   try {
-    const employees = await Employee.find().populate({
-      path: 'userRef',
-      populate: { path: 'role', select: 'name' }
-    }).populate('reportingManager', 'firstName lastName employeeId');
-    
+    const roleName = req.user.role?.name;
+
+    // Super Admin sees all employees; otherwise scope to org
+    let filter = {};
+    if (roleName !== 'Super Admin' && req.user.organization) {
+      // Find all user IDs in the same org, then filter employees by userRef
+      const orgUserIds = await User.find({ organization: req.user.organization }).select('_id').lean();
+      filter = { userRef: { $in: orgUserIds.map(u => u._id) } };
+    }
+
+    const employees = await Employee.find(filter)
+      .populate({ path: 'userRef', populate: { path: 'role', select: 'name' } })
+      .populate('reportingManager', 'firstName lastName employeeId');
+
     res.json(employees);
   } catch (error) {
+    console.error('Get Employees Error:', error);
     res.status(500).json({ error: 'Server error fetching employees' });
   }
 };

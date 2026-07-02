@@ -1,9 +1,27 @@
 import axios from 'axios';
 
+const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+const baseURL = `http://${hostname}:3000/api`;
+
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api',
+  baseURL,
   withCredentials: true, // Crucial for sending/receiving HTTP-Only cookies
 });
+
+
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
 
 // Response Interceptor for Token Rotation
 api.interceptors.response.use(
@@ -11,24 +29,39 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If 401 Unauthorized (Access Token Expired) and we haven't retried yet
-    if (
-      error.response &&
-      error.response.status === 401 &&
-      error.response.data?.code === 'TOKEN_EXPIRED' &&
-      !originalRequest._retry
-    ) {
+    // Only attempt refresh on 401 errors, and not on the refresh/login endpoints themselves
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/refresh') ||
+                           originalRequest.url?.includes('/auth/login');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+      if (isRefreshing) {
+        // Queue this request while refresh is in progress
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(() => api(originalRequest))
+          .catch(err => Promise.reject(err));
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
         // Attempt to refresh the token using the refresh token cookie
-        await axios.post('http://localhost:3000/api/auth/refresh', {}, { withCredentials: true });
-        
-        // If successful, retry the original request
+        await axios.post(
+          `${baseURL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
+
+
+        processQueue(null);
+        isRefreshing = false;
+
+        // Retry the original request
         return api(originalRequest);
       } catch (refreshError) {
-        // Refresh token is expired or invalid -> let the calling code handle it
-        // Don't do window.location.href as it causes a jarring reload loop
+        processQueue(refreshError);
+        isRefreshing = false;
         return Promise.reject(refreshError);
       }
     }

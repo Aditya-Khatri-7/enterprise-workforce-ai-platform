@@ -1,6 +1,6 @@
 # Enterprise Workforce Management Platform with AI Operations Assistant
 
-**Team Members:** Aditya, Saurabh, Dhumi, Madhur
+**Team Members:** Aditya, Saurabh, Dhumi, Madhur, Siddhant
 
 ---
 

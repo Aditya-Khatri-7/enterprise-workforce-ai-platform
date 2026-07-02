@@ -1,0 +1,195 @@
+const bcrypt = require('bcrypt');
+const Organization = require('../models/Organization');
+const User = require('../models/User');
+const Role = require('../models/Role');
+const Employee = require('../models/Employee');
+const AuditLog = require('../models/AuditLog');
+
+const createOrganization = async (req, res) => {
+  try {
+    const { name, email, phone, address, subscriptionPlan } = req.body;
+    if (!name || !email || !phone) {
+      return res.status(400).json({ error: 'Name, email and phone are required' });
+    }
+
+    const existingOrg = await Organization.findOne({ $or: [{ name }, { email }] });
+    if (existingOrg) {
+      return res.status(400).json({ error: 'Organization name or email already exists' });
+    }
+
+    // Auto-generate Organization ID
+    let organizationId = 'ORG0001';
+    const lastOrg = await Organization.findOne().sort({ organizationId: -1 });
+    if (lastOrg) {
+      const match = lastOrg.organizationId.match(/ORG(\d+)/);
+      if (match) {
+        const nextNumber = parseInt(match[1], 10) + 1;
+        organizationId = `ORG${String(nextNumber).padStart(4, '0')}`;
+      } else {
+        const count = await Organization.countDocuments();
+        organizationId = `ORG${String(count + 1).padStart(4, '0')}`;
+      }
+    }
+
+    const org = new Organization({
+      organizationId,
+      name,
+      email,
+      phone,
+      address,
+      subscriptionPlan: subscriptionPlan || 'Basic',
+      status: 'Active'
+    });
+    await org.save();
+
+    await AuditLog.create({
+      action: 'ORGANIZATION_CREATED',
+      userRef: req.user._id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: `Created organization: ${name} (${organizationId})`
+    });
+
+    res.status(201).json({ message: 'Organization created successfully', organization: org });
+  } catch (error) {
+    console.error('Create Organization Error:', error);
+    res.status(500).json({ error: 'Server error creating organization' });
+  }
+};
+
+const assignAdmin = async (req, res) => {
+  try {
+    const { organizationId, name, email, phone, password } = req.body;
+    if (!organizationId || !name || !email || !password) {
+      return res.status(400).json({ error: 'Organization ID, Name, Email, and Password are required' });
+    }
+
+    const org = await Organization.findById(organizationId);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User email already exists' });
+    }
+
+    const orgAdminRole = await Role.findOne({ name: 'Organization Admin' });
+    if (!orgAdminRole) {
+      return res.status(500).json({ error: 'Organization Admin role not configured in system' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const username = email.split('@')[0];
+
+    const user = new User({
+      email,
+      username,
+      password: hashedPassword,
+      role: orgAdminRole._id,
+      organization: org._id,
+      mustChangePassword: true
+    });
+    await user.save();
+
+    // Create a base Employee profile for the Org Admin so the dashboard has populated data
+    let employeeId = 'EMP0001';
+    const lastEmployee = await Employee.findOne().sort({ employeeId: -1 });
+    if (lastEmployee) {
+      const match = lastEmployee.employeeId.match(/EMP(\d+)/);
+      if (match) {
+        const nextNumber = parseInt(match[1], 10) + 1;
+        employeeId = `EMP${String(nextNumber).padStart(4, '0')}`;
+      } else {
+        const count = await Employee.countDocuments();
+        employeeId = `EMP${String(count + 1).padStart(4, '0')}`;
+      }
+    }
+
+    const employee = new Employee({
+      employeeId,
+      firstName: name.split(' ')[0],
+      lastName: name.split(' ').slice(1).join(' ') || 'Admin',
+      email,
+      mobile: phone,
+      department: 'Management',
+      designation: 'Organization Admin',
+      joiningDate: new Date(),
+      userRef: user._id
+    });
+    await employee.save();
+
+    user.employeeRef = employee._id;
+    await user.save();
+
+    await AuditLog.create({
+      action: 'USER_CREATED',
+      userRef: req.user._id,
+      targetUserRef: user._id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: `Assigned initial Admin: ${username} to Organization: ${org.name}`
+    });
+
+    res.status(201).json({ message: 'Organization Admin assigned successfully', user });
+  } catch (error) {
+    console.error('Assign Admin Error:', error);
+    res.status(500).json({ error: 'Server error assigning admin' });
+  }
+};
+
+const updateOrganizationStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['Active', 'Suspended', 'Deleted'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const org = await Organization.findById(id);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    org.status = status;
+    await org.save();
+
+    // If suspended or deleted, deactivate all users in that organization!
+    if (status === 'Suspended' || status === 'Deleted') {
+      await User.updateMany({ organization: org._id }, { isActive: false });
+    } else if (status === 'Active') {
+      await User.updateMany({ organization: org._id }, { isActive: true });
+    }
+
+    await AuditLog.create({
+      action: 'USER_STATUS_UPDATED',
+      userRef: req.user._id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: `Updated organization ${org.name} status to: ${status}`
+    });
+
+    res.json({ message: `Organization status updated to ${status} successfully`, organization: org });
+  } catch (error) {
+    console.error('Update Org Status Error:', error);
+    res.status(500).json({ error: 'Server error updating status' });
+  }
+};
+
+const getOrganizations = async (req, res) => {
+  try {
+    const organizations = await Organization.find();
+    res.json(organizations);
+  } catch (error) {
+    console.error('Get Organizations Error:', error);
+    res.status(500).json({ error: 'Server error fetching organizations' });
+  }
+};
+
+module.exports = {
+  createOrganization,
+  assignAdmin,
+  updateOrganizationStatus,
+  getOrganizations
+};

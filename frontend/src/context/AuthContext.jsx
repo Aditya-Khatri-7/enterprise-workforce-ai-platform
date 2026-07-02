@@ -31,9 +31,14 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     const { data } = await api.post('/auth/login', credentials);
-    setUser(data.user);
+    // Normalize role to be a string for consistent access control checks
+    setUser({
+      ...data.user,
+      role: data.user.role?.name || data.user.role
+    });
     return data;
   };
+
 
   const logout = async () => {
     await api.post('/auth/logout');

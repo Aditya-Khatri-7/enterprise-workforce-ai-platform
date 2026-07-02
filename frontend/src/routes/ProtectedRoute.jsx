@@ -14,7 +14,17 @@ const ProtectedRoute = () => {
     );
   }
 
-  return user ? <Outlet /> : <Navigate to="/login" state={{ from: location }} replace />;
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Force password change on first login
+  if (user.mustChangePassword && location.pathname !== '/profile') {
+    return <Navigate to="/profile" state={{ forcePasswordChange: true }} replace />;
+  }
+
+  return <Outlet />;
 };
 
 export default ProtectedRoute;
+
