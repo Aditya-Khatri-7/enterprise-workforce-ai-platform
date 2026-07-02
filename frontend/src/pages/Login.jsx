@@ -190,7 +190,7 @@ const Login = () => {
               <div className="space-y-4">
                 {/* Email input component */}
                 <div className="space-y-1">
-                  <label htmlFor="email" className="sr-only">Email address</label>
+                  <label htmlFor="email" className="sr-only">Email, Username, or Employee ID</label>
                   <motion.div 
                     animate={{ 
                       scale: isEmailFocused ? 1.015 : 1,
@@ -204,17 +204,16 @@ const Login = () => {
                     </div>
                     <input
                       id="email"
-                      type="email"
+                      type="text"
                       autoComplete="email"
                       onFocus={() => setIsEmailFocused(true)}
                       onBlur={() => setIsEmailFocused(false)}
                       className={`block w-full pl-10 pr-3 py-3 bg-slate-950/80 border rounded-md text-white placeholder-slate-550 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all duration-300 ${
                         errors.email ? 'border-red-500/80 focus:ring-red-500 focus:border-red-500' : 'border-slate-850/85'
                       }`}
-                      placeholder="Email address"
+                      placeholder="Email, Username, or Employee ID"
                       {...register('email', { 
-                        required: 'Email is required',
-                        pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email address' }
+                        required: 'Email, Username, or Employee ID is required'
                       })}
                     />
                   </motion.div>

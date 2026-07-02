@@ -23,7 +23,8 @@ const employeeSchema = new mongoose.Schema({
   status: { type: String, enum: ['Active', 'On Leave', 'Terminated', 'Archived'], default: 'Active' },
   
   profileImage: { type: String },
-  
+  emergencyContact: { type: String, trim: true },
+  skills: [{ type: String, trim: true }],
   userRef: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 

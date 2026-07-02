@@ -16,12 +16,13 @@ import AdminDashboard from './pages/AdminDashboard';
 import EmployeeManagement from './pages/EmployeeManagement';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import Profile from './pages/Profile';
+import AuditLogPage from './pages/AuditLogPage';
 import DashboardLayout from './layouts/DashboardLayout';
 
 // Temporary placeholder components until they are fully built
 const DashboardRouter = () => {
   const { user } = useContext(AuthContext);
-  if (user?.role === 'Super Admin' || user?.role === 'Organization Admin' || user?.role === 'HR Manager') {
+  if (user?.role === 'Super Admin' || user?.role === 'Organization Admin' || user?.role === 'HR Manager' || user?.role === 'IT Administrator') {
     return <Navigate to="/admin/dashboard" replace />;
   }
   return <Navigate to="/employee/dashboard" replace />;
@@ -48,9 +49,10 @@ function App() {
             
             <Route element={<DashboardLayout />}>
               {/* Admin Routes */}
-              <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager']} />}>
+              <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator']} />}>
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
                 <Route path="/admin/employees" element={<EmployeeManagement />} />
+                <Route path="/admin/audit" element={<AuditLogPage />} />
               </Route>
 
               {/* Employee Routes */}

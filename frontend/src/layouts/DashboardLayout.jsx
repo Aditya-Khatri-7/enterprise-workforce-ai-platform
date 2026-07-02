@@ -6,7 +6,7 @@ const DashboardLayout = () => {
   const { user, logout } = useContext(AuthContext);
   const location = useLocation();
 
-  const isAdmin = user?.role === 'Super Admin' || user?.role === 'Organization Admin' || user?.role === 'HR Manager';
+  const isAdmin = ['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator'].includes(user?.role);
 
   return (
     <div className="flex h-screen bg-gray-100 font-sans">
@@ -25,18 +25,22 @@ const DashboardLayout = () => {
               >
                 Dashboard
               </Link>
-              <Link 
-                to="/admin/employees" 
-                className={`block px-4 py-3 rounded transition-colors ${location.pathname.includes('/admin/employees') ? 'bg-blue-600' : 'hover:bg-gray-800'}`}
-              >
-                Employee Management
-              </Link>
-              <Link 
-                to="/admin/audit" 
-                className={`block px-4 py-3 rounded transition-colors ${location.pathname.includes('/admin/audit') ? 'bg-blue-600' : 'hover:bg-gray-800'}`}
-              >
-                Audit Logs
-              </Link>
+              {['Organization Admin', 'HR Manager'].includes(user?.role) && (
+                <Link 
+                  to="/admin/employees" 
+                  className={`block px-4 py-3 rounded transition-colors ${location.pathname.includes('/admin/employees') ? 'bg-blue-600' : 'hover:bg-gray-800'}`}
+                >
+                  Employee Management
+                </Link>
+              )}
+              {user?.role === 'Super Admin' && (
+                <Link 
+                  to="/admin/audit" 
+                  className={`block px-4 py-3 rounded transition-colors ${location.pathname.includes('/admin/audit') ? 'bg-blue-600' : 'hover:bg-gray-800'}`}
+                >
+                  Audit Logs
+                </Link>
+              )}
             </>
           ) : (
             <>

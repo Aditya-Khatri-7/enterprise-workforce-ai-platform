@@ -7,16 +7,30 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employee');
+const organizationRoutes = require('./routes/organization');
+const userRoutes = require('./routes/user');
+const auditRoutes = require('./routes/audit');
+const departmentRoutes = require('./routes/department');
+const leaveRoutes = require('./routes/leave');
+const supportRoutes = require('./routes/support');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Security Middlewares
 app.use(helmet());
+const allowedOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
 app.use(cors({
-  origin: 'http://localhost:5173', // Vite default port
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
+
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -34,6 +48,12 @@ app.use(cookieParser());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/organizations', organizationRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/api/leaves', leaveRoutes);
+app.use('/api/support', supportRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const https = require('https');
 const querystring = require('querystring');
 const User = require('../models/User');
+const Employee = require('../models/Employee');
 const RefreshToken = require('../models/RefreshToken');
 const AuditLog = require('../models/AuditLog');
 const Otp = require('../models/Otp');
@@ -11,9 +12,10 @@ const { sendOtpEmail } = require('../utils/emailService');
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
+  sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
 };
+
 
 /**
  * Verify a reCAPTCHA v2 token with Google's API.
@@ -71,10 +73,27 @@ const login = async (req, res) => {
     // --- end reCAPTCHA verification ---
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({ error: 'Email, username, or employee ID and password are required' });
     }
 
-    const user = await User.findOne({ email }).populate('role');
+    const loginId = email.trim();
+
+    let user = await User.findOne({
+      $or: [
+        { email: loginId.toLowerCase() },
+        { username: { $regex: new RegExp(`^${loginId}$`, 'i') } }
+      ]
+    }).populate('role');
+
+    if (!user) {
+      // Find employee by employeeId (case-insensitive)
+      const employee = await Employee.findOne({
+        employeeId: { $regex: new RegExp(`^${loginId}$`, 'i') }
+      });
+      if (employee) {
+        user = await User.findOne({ employeeRef: employee._id }).populate('role');
+      }
+    }
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -130,16 +149,22 @@ const login = async (req, res) => {
     res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 }); // 15 mins
     res.cookie('refreshToken', refreshToken, cookieOptions);
 
+    // Fetch the full user with populated refs so the frontend has everything it needs
+    const fullUser = await User.findById(user._id)
+      .select('-password -failedLoginAttempts')
+      .populate('role')
+      .populate('employeeRef')
+      .populate('organization', 'name organizationId status');
+
     res.json({
       message: 'Login successful',
       user: {
-        id: user._id,
-        email: user.email,
-        username: user.username,
-        role: user.role.name,
+        ...fullUser.toObject(),
+        role: fullUser.role?.name,       // normalize to string for frontend
         mustChangePassword: user.mustChangePassword
       }
     });
+
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Server error during login' });

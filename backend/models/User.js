@@ -26,6 +26,10 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Employee'
   },
+  organization: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization'
+  },
   mustChangePassword: {
     type: Boolean,
     default: true

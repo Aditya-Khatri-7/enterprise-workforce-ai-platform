@@ -6,7 +6,9 @@ const auditLogSchema = new mongoose.Schema({
     required: true,
     enum: [
       'LOGIN', 'LOGOUT', 'PASSWORD_CHANGE', 'FAILED_LOGIN', 
-      'EMPLOYEE_CREATED', 'EMPLOYEE_UPDATED', 'EMPLOYEE_ARCHIVED'
+      'EMPLOYEE_CREATED', 'EMPLOYEE_UPDATED', 'EMPLOYEE_ARCHIVED',
+      'ORGANIZATION_CREATED', 'USER_UNLOCKED', 'USER_PASSWORD_RESET', 
+      'USER_CREATED', 'USER_STATUS_UPDATED'
     ]
   },
   userRef: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
