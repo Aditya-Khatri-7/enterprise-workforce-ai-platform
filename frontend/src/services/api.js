@@ -12,7 +12,12 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     // If 401 Unauthorized (Access Token Expired) and we haven't retried yet
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+    if (
+      error.response &&
+      error.response.status === 401 &&
+      error.response.data?.code === 'TOKEN_EXPIRED' &&
+      !originalRequest._retry
+    ) {
       originalRequest._retry = true;
 
       try {
