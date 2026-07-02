@@ -22,7 +22,8 @@ import DashboardLayout from './layouts/DashboardLayout';
 // Temporary placeholder components until they are fully built
 const DashboardRouter = () => {
   const { user } = useContext(AuthContext);
-  if (user?.role === 'Super Admin' || user?.role === 'Organization Admin' || user?.role === 'HR Manager' || user?.role === 'IT Administrator') {
+  const adminRoles = ['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Manager', 'Team Lead', 'Finance'];
+  if (adminRoles.includes(user?.role)) {
     return <Navigate to="/admin/dashboard" replace />;
   }
   return <Navigate to="/employee/dashboard" replace />;
@@ -48,9 +49,11 @@ function App() {
             <Route path="/dashboard" element={<DashboardRouter />} />
             
             <Route element={<DashboardLayout />}>
-              {/* Admin Routes */}
-              <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator']} />}>
+              {/* Admin & Manager & Lead & Finance Routes */}
+              <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Manager', 'Team Lead', 'Finance']} />}>
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              </Route>
+              <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator']} />}>
                 <Route path="/admin/employees" element={<EmployeeManagement />} />
                 <Route path="/admin/audit" element={<AuditLogPage />} />
               </Route>

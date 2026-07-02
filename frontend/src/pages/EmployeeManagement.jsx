@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import api from '../services/api';
+import { AuthContext } from '../context/AuthContext';
 
 const EmployeeManagement = () => {
+  const { user } = useContext(AuthContext);
   const [employees, setEmployees] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -43,27 +45,58 @@ const EmployeeManagement = () => {
     }
   };
 
-  const archiveEmployee = async (id) => {
-    if (window.confirm('Are you sure you want to archive this employee?')) {
-      try {
-        await api.delete(`/employees/${id}`);
-        toast.success('Employee archived');
-        fetchEmployees();
-      } catch (error) {
-        toast.error('Failed to archive employee');
-      }
+  const handleToggleSuspend = async (emp) => {
+    const isSuspended = !emp.userRef?.isActive;
+    const action = isSuspended ? 'activate' : 'suspend';
+    if (!window.confirm(`Are you sure you want to ${action} ${emp.firstName} ${emp.lastName}'s account?`)) return;
+    try {
+      await api.put(`/users/${emp.userRef?._id}/status`, { isActive: isSuspended });
+      toast.success(`Employee account ${isSuspended ? 'activated' : 'suspended'} successfully`);
+      fetchEmployees();
+    } catch (error) {
+      toast.error(error.response?.data?.error || `Failed to ${action} employee`);
     }
   };
+
+  const handleDeleteEmployee = async (id, name) => {
+    if (!window.confirm(`Permanently delete ${name}'s record? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/employees/${id}`);
+      toast.success('Employee record deleted');
+      fetchEmployees();
+    } catch (error) {
+      toast.error('Failed to delete employee');
+    }
+  };
+
+  // Role-based filtering: exclude archived, Org Admin accounts, and HR Manager accounts
+  const visibleEmployees = employees.filter(emp => {
+    const role = emp.userRef?.role?.name;
+    if (emp.status === 'Archived') return false;
+    if (user?.role === 'Organization Admin') {
+      return role !== 'Organization Admin';
+    }
+    if (user?.role === 'HR Manager') {
+      return role !== 'Organization Admin' && role !== 'HR Manager';
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-medium text-gray-900">Manage Employees</h3>
-        <button 
+        <div>
+          <h3 className="text-xl font-semibold text-gray-900">Manage Employees</h3>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Viewing as: <span className="font-semibold text-blue-600">{user?.role || 'Admin'}</span>
+            {' '}&mdash; {visibleEmployees.length} record{visibleEmployees.length !== 1 ? 's' : ''} visible
+          </p>
+        </div>
+        <button
           onClick={() => setShowModal(true)}
           className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded shadow-sm transition-colors"
         >
-          + Create Employee
+          + Add Employee
         </button>
       </div>
 
@@ -82,10 +115,10 @@ const EmployeeManagement = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr><td colSpan="4" className="px-6 py-4 text-center">Loading...</td></tr>
-              ) : employees.length === 0 ? (
+              ) : visibleEmployees.length === 0 ? (
                 <tr><td colSpan="4" className="px-6 py-4 text-center text-gray-500">No employees found.</td></tr>
               ) : (
-                employees.map(emp => (
+                visibleEmployees.map(emp => (
                   <tr key={emp._id}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -103,13 +136,40 @@ const EmployeeManagement = () => {
                       <div className="text-sm text-gray-500">{emp.userRef?.role?.name || 'N/A'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${emp.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {emp.status}
-                      </span>
+                      {(() => {
+                        const isSuspended = emp.userRef?.isActive === false;
+                        const statusLabel = isSuspended ? 'Suspended' : (emp.status || 'Active');
+                        const statusColor = isSuspended
+                          ? 'bg-orange-100 text-orange-800'
+                          : emp.status === 'Active' ? 'bg-green-100 text-green-800'
+                          : emp.status === 'On Leave' ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-gray-100 text-gray-600';
+                        return (
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}`}>
+                            {statusLabel}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900 mr-4">Edit</button>
-                      <button onClick={() => archiveEmployee(emp._id)} className="text-red-600 hover:text-red-900">Archive</button>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => handleToggleSuspend(emp)}
+                          className={`font-semibold py-1 px-3 rounded text-xs transition-colors ${
+                            emp.userRef?.isActive !== false
+                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}
+                        >
+                          {emp.userRef?.isActive !== false ? 'Suspend' : 'Activate'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEmployee(emp._id, `${emp.firstName} ${emp.lastName}`)}
+                          className="font-semibold py-1 px-3 rounded text-xs bg-gray-100 text-red-600 hover:bg-red-50 border border-red-200 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

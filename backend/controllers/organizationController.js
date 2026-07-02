@@ -4,12 +4,17 @@ const User = require('../models/User');
 const Role = require('../models/Role');
 const Employee = require('../models/Employee');
 const AuditLog = require('../models/AuditLog');
+const Department = require('../models/Department');
+const LeaveRequest = require('../models/LeaveRequest');
+const SupportRequest = require('../models/SupportRequest');
+const RefreshToken = require('../models/RefreshToken');
+const Otp = require('../models/Otp');
 
 const createOrganization = async (req, res) => {
   try {
-    const { name, email, phone, address, subscriptionPlan } = req.body;
-    if (!name || !email || !phone) {
-      return res.status(400).json({ error: 'Name, email and phone are required' });
+    const { name, email, address, subscriptionPlan } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email are required' });
     }
 
     const existingOrg = await Organization.findOne({ $or: [{ name }, { email }] });
@@ -35,7 +40,6 @@ const createOrganization = async (req, res) => {
       organizationId,
       name,
       email,
-      phone,
       address,
       subscriptionPlan: subscriptionPlan || 'Basic',
       status: 'Active'
@@ -187,9 +191,64 @@ const getOrganizations = async (req, res) => {
   }
 };
 
+const deleteOrganization = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const org = await Organization.findById(id);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    // 1. Find all users associated with this organization
+    const users = await User.find({ organization: id });
+    const userIds = users.map(u => u._id);
+    const userEmails = users.map(u => u.email);
+
+    // 2. Delete all Employees referencing these users
+    await Employee.deleteMany({ userRef: { $in: userIds } });
+
+    // 3. Delete Refresh Tokens
+    await RefreshToken.deleteMany({ userRef: { $in: userIds } });
+
+    // 4. Delete Otp records
+    await Otp.deleteMany({ email: { $in: userEmails } });
+
+    // 5. Delete Leave Requests
+    await LeaveRequest.deleteMany({ organization: id });
+
+    // 6. Delete Support Requests
+    await SupportRequest.deleteMany({ organization: id });
+
+    // 7. Delete Departments
+    await Department.deleteMany({ organization: id });
+
+    // 8. Delete Users
+    await User.deleteMany({ organization: id });
+
+    // 9. Delete the Organization
+    await Organization.findByIdAndDelete(id);
+
+    // 10. Log the action
+    await AuditLog.create({
+      action: 'ORGANIZATION_DELETED',
+      userRef: req.user._id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: `Deleted organization: ${org.name} (${org.organizationId}) and all associated users, employees, departments, and requests.`
+    });
+
+    res.json({ message: 'Organization and all associated data deleted successfully' });
+  } catch (error) {
+    console.error('Delete Organization Error:', error);
+    res.status(500).json({ error: 'Server error deleting organization' });
+  }
+};
+
 module.exports = {
   createOrganization,
   assignAdmin,
   updateOrganizationStatus,
-  getOrganizations
+  getOrganizations,
+  deleteOrganization
 };

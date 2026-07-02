@@ -11,7 +11,7 @@ router.post('/', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager
 router.delete('/:id', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager'), employeeController.deleteEmployee);
 
 // Reading and updating employees
-router.get('/', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager', 'Manager'), employeeController.getEmployees);
+router.get('/', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager', 'Manager', 'Team Lead', 'Finance'), employeeController.getEmployees);
 router.get('/:id', employeeController.getEmployeeById); // Employee can view their own, logic inside controller/frontend can restrict
 router.put('/:id', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager', 'Employee'), employeeController.updateEmployee);
 

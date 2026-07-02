@@ -19,11 +19,7 @@ const organizationSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
-  phone: {
-    type: String,
-    required: true,
-    trim: true
-  },
+
   address: {
     type: String,
     trim: true

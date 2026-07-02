@@ -13,6 +13,10 @@ const auditRoutes = require('./routes/audit');
 const departmentRoutes = require('./routes/department');
 const leaveRoutes = require('./routes/leave');
 const supportRoutes = require('./routes/support');
+const designationRoutes = require('./routes/designation');
+const policyRoutes = require('./routes/policy');
+const workShiftRoutes = require('./routes/workShift');
+const enterpriseRoutes = require('./routes/enterprise');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,6 +58,10 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/leaves', leaveRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/designations', designationRoutes);
+app.use('/api/policies', policyRoutes);
+app.use('/api/workshifts', workShiftRoutes);
+app.use('/api/enterprise', enterpriseRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

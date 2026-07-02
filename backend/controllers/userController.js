@@ -7,7 +7,7 @@ const AuditLog = require('../models/AuditLog');
 const getUsers = async (req, res) => {
   try {
     let filter = {};
-    if (req.user.role.name === 'Organization Admin' || req.user.role.name === 'IT Administrator') {
+    if (req.user.role.name !== 'Super Admin' && req.user.organization) {
       filter = { organization: req.user.organization };
     }
     // Fetch users, populate role, organization, employeeRef
@@ -51,8 +51,9 @@ const createUser = async (req, res) => {
       }
     } else if (req.user.role.name === 'Organization Admin') {
       targetOrgId = req.user.organization;
-      if (roleName === 'Super Admin') {
-        return res.status(403).json({ error: 'Forbidden. Cannot create Super Admin.' });
+      const allowedRoles = ['HR Manager', 'Finance', 'IT Administrator', 'Manager', 'Team Lead'];
+      if (!allowedRoles.includes(roleName)) {
+        return res.status(403).json({ error: 'Forbidden. Organization Admin can only create HR Manager, Finance Executive, IT Administrator, Department Manager, or Team Lead.' });
       }
     } else {
       return res.status(403).json({ error: 'Forbidden. Unauthorized to create users.' });
@@ -128,13 +129,29 @@ const toggleUserStatus = async (req, res) => {
     const { id } = req.params;
     const { isActive } = req.body;
 
-    const user = await User.findById(id);
+    const user = await User.findById(id).populate('organization').populate('role');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (req.user.role.name === 'Organization Admin' && user.organization?.toString() !== req.user.organization?.toString()) {
+    // Organization Admin can only manage users within their own org
+    if (req.user.role.name === 'Organization Admin' && user.organization?._id?.toString() !== req.user.organization?.toString()) {
       return res.status(403).json({ error: 'Forbidden. User belongs to another organization.' });
+    }
+
+    // HR Manager can only manage users in their own org, and cannot touch Org Admins or other HR Managers
+    if (req.user.role.name === 'HR Manager') {
+      if (user.organization?._id?.toString() !== req.user.organization?.toString()) {
+        return res.status(403).json({ error: 'Forbidden. User belongs to another organization.' });
+      }
+      const protectedRoles = ['Organization Admin', 'HR Manager', 'Super Admin'];
+      if (protectedRoles.includes(user.role?.name)) {
+        return res.status(403).json({ error: 'Forbidden. HR Managers cannot suspend admin or HR accounts.' });
+      }
+    }
+
+    if (isActive && user.organization && user.organization.status === 'Suspended') {
+      return res.status(400).json({ error: 'Cannot activate user account belonging to a suspended organization' });
     }
 
     user.isActive = isActive;

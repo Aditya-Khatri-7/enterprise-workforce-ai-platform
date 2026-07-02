@@ -9,5 +9,6 @@ router.get('/', authorizeRoles('Super Admin'), organizationController.getOrganiz
 router.post('/', authorizeRoles('Super Admin'), organizationController.createOrganization);
 router.post('/assign-admin', authorizeRoles('Super Admin'), organizationController.assignAdmin);
 router.put('/:id/status', authorizeRoles('Super Admin'), organizationController.updateOrganizationStatus);
+router.delete('/:id', authorizeRoles('Super Admin'), organizationController.deleteOrganization);
 
 module.exports = router;

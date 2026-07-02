@@ -157,7 +157,7 @@ const getEmployees = async (req, res) => {
     }
 
     const employees = await Employee.find(filter)
-      .populate({ path: 'userRef', populate: { path: 'role', select: 'name' } })
+      .populate({ path: 'userRef', select: 'isActive username email role', populate: { path: 'role', select: 'name' } })
       .populate('reportingManager', 'firstName lastName employeeId');
 
     res.json(employees);
