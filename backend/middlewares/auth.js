@@ -20,11 +20,21 @@ const authenticateUser = async (req, res, next) => {
       return res.status(403).json({ error: 'Account is locked. Please contact Admin.' });
     }
 
+    req.user = user;
+
     if (!user.isActive) {
-      return res.status(403).json({ error: 'Account is inactive.' });
+      // Inactive users are restricted only to profile me, logout, and activation request operations
+      const allowedPaths = [
+        '/api/auth/me',
+        '/api/auth/logout',
+        '/api/requests'
+      ];
+      const isAllowed = allowedPaths.some(path => req.originalUrl.startsWith(path));
+      if (!isAllowed) {
+        return res.status(403).json({ error: 'Account is inactive.', code: 'ACCOUNT_INACTIVE' });
+      }
     }
 
-    req.user = user;
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

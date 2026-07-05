@@ -17,6 +17,11 @@ const designationRoutes = require('./routes/designation');
 const policyRoutes = require('./routes/policy');
 const workShiftRoutes = require('./routes/workShift');
 const enterpriseRoutes = require('./routes/enterprise');
+const recruitmentRoutes = require('./routes/recruitment');
+const assetRoutes = require('./routes/asset');
+const attendanceRoutes = require('./routes/attendance');
+const aiRoutes = require('./routes/ai');
+const notificationRoutes = require('./routes/notification');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -62,6 +67,12 @@ app.use('/api/designations', designationRoutes);
 app.use('/api/policies', policyRoutes);
 app.use('/api/workshifts', workShiftRoutes);
 app.use('/api/enterprise', enterpriseRoutes);
+app.use('/api/recruitment', recruitmentRoutes);
+app.use('/api/assets', assetRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/requests', require('./routes/request'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {

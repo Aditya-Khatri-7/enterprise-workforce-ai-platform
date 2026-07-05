@@ -1,2130 +1,1306 @@
 import React, { useEffect, useState, useContext, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { AuthContext } from '../context/AuthContext';
+import { DemoContext, DemoProgressContext } from '../context/DemoContext';
+import {
+  Shield, Cpu, Users, Briefcase, Activity, User, DollarSign, Terminal, FileText,
+  Settings, CheckCircle, AlertTriangle, AlertCircle, Play, Plus, Trash, Edit,
+  ArrowRight, RefreshCw, Layers, ShieldAlert, Award, Calendar, Clock, Lock
+} from 'lucide-react';
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip
+} from 'recharts';
 
-// ─── Shared Stat Card ─────────────────────────────────────────────────────────
-const StatCard = ({ label, value, color, icon }) => (
-  <div className="bg-white overflow-hidden shadow rounded-lg p-5 flex items-center border border-gray-100">
-    <div className={`flex-shrink-0 ${color} rounded-lg p-3 text-white`}>
-      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={icon} />
-      </svg>
-    </div>
-    <div className="ml-5">
-      <p className="text-sm font-medium text-gray-500 truncate">{label}</p>
-      <p className="text-3xl font-bold text-gray-900">{value}</p>
-    </div>
-  </div>
-);
+// ─── Stat Card Component ────────────────────────────────────────────────────────
+const StatCard = ({ label, value, colorAccent = 'cyan', icon: Icon, desc }) => {
+  const accentClasses = {
+    purple: 'border-purple-300 dark:border-purple-500/30 text-purple-700 dark:text-purple-400 from-purple-500/5 to-indigo-500/5',
+    blue: 'border-blue-300 dark:border-blue-500/30 text-blue-700 dark:text-blue-400 from-blue-500/10 to-indigo-500/5',
+    teal: 'border-teal-300 dark:border-teal-500/30 text-teal-700 dark:text-teal-400 from-teal-500/10 to-indigo-500/5',
+    orange: 'border-orange-300 dark:border-orange-500/30 text-orange-700 dark:text-orange-400 from-orange-500/10 to-indigo-500/5',
+    cyan: 'border-cyan-300 dark:border-cyan-500/30 text-cyan-700 dark:text-cyan-400 from-cyan-500/10 to-indigo-500/5',
+    yellow: 'border-yellow-300 dark:border-yellow-500/30 text-yellow-800 dark:text-yellow-450 from-yellow-500/10 to-indigo-500/5',
+    red: 'border-red-300 dark:border-red-500/30 text-red-700 dark:text-red-400 from-red-500/10 to-indigo-500/5',
+    slate: 'border-slate-300 dark:border-slate-500/30 text-slate-700 dark:text-slate-400 from-slate-500/10 to-indigo-500/5'
+  };
 
-// ─── Shared Badge ──────────────────────────────────────────────────────────────
-const Badge = ({ value, map }) => {
-  const cfg = map[value] || 'bg-gray-100 text-gray-700';
   return (
-    <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${cfg}`}>{value}</span>
+    <motion.div
+      whileHover={{ y: -4, scale: 1.01 }}
+      className={`glass-card border ${accentClasses[colorAccent]} rounded-2xl p-5 flex items-center justify-between relative overflow-hidden bg-gradient-to-tr`}
+    >
+      <div className="space-y-1 z-10">
+        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{label}</p>
+        <p className="text-2xl font-black text-slate-900 dark:text-white">{value}</p>
+        {desc && <p className="text-[10px] text-slate-500 dark:text-slate-400">{desc}</p>}
+      </div>
+      <div className="p-3 bg-slate-100 dark:bg-black/20 rounded-xl z-10">
+        {Icon && <Icon className="h-5 w-5" />}
+      </div>
+    </motion.div>
   );
 };
 
-const STATUS_COLORS = {
-  Active: 'bg-green-100 text-green-800',
-  Suspended: 'bg-yellow-100 text-yellow-800',
-  Deleted: 'bg-red-100 text-red-800',
-};
-
-const LEAVE_STATUS_COLORS = {
-  Pending: 'bg-yellow-100 text-yellow-800',
-  Approved: 'bg-green-100 text-green-800',
-  Rejected: 'bg-red-100 text-red-800',
-};
-
-const TICKET_STATUS_COLORS = {
-  Open: 'bg-blue-100 text-blue-800',
-  'In Progress': 'bg-yellow-100 text-yellow-800',
-  Resolved: 'bg-green-100 text-green-800',
-  Closed: 'bg-gray-100 text-gray-700',
-};
-
-// ─── Modal Wrapper ─────────────────────────────────────────────────────────────
-const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 overflow-y-auto">
-    <div className="flex items-center justify-center min-h-screen px-4">
-      <div className="fixed inset-0 bg-gray-800 bg-opacity-60" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-auto z-10">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
+// ─── Modal Component ──────────────────────────────────────────────────────────
+const LocalModal = ({ title, onClose, children }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="relative bg-white dark:bg-[#151A30] border border-slate-200 dark:border-indigo-500/30 rounded-2xl shadow-2xl w-full max-w-lg z-10 p-6 text-slate-800 dark:text-white"
+    >
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-indigo-500/15 pb-3 mb-4">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-650 dark:text-cyan-400">{title}</h3>
+        <button onClick={onClose} className="text-slate-400 dark:text-slate-450 hover:text-slate-900 dark:hover:text-white text-xl font-light">&times;</button>
       </div>
-    </div>
+      {children}
+    </motion.div>
   </div>
 );
-
-// ─── Form Input ────────────────────────────────────────────────────────────────
-const Field = ({ label, children }) => (
-  <div>
-    <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-    {children}
-  </div>
-);
-
-const Input = (props) => (
-  <input {...props} className="block w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-);
-
-const Select = ({ children, ...props }) => (
-  <select {...props} className="block w-full border border-gray-300 rounded-lg py-2 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-    {children}
-  </select>
-);
-
-const Btn = ({ children, variant = 'primary', className = '', ...props }) => {
-  const base = 'inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-all focus:outline-none disabled:opacity-60';
-  const variants = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
-    success: 'bg-green-600 hover:bg-green-700 text-white',
-    danger: 'bg-red-600 hover:bg-red-700 text-white',
-    secondary: 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300',
-  };
-  return <button {...props} className={`${base} ${variants[variant]} ${className}`}>{children}</button>;
-};
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SUPER ADMIN DASHBOARD
+// 1. SUPER ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 const SuperAdminDashboard = () => {
-  const { user: superUser } = useContext(AuthContext);
-  const [orgs, setOrgs] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [logs, setLogs] = useState([]);
-  const [tab, setTab] = useState('orgs');
-  const [loading, setLoading] = useState(true);
-  const [showOrgModal, setShowOrgModal] = useState(false);
-  const [showAdminModal, setShowAdminModal] = useState(false);
-  const [selectedOrg, setSelectedOrg] = useState(null);
+  const roleColors = ['#A855F7', '#3B82F6', '#14B8A6', '#F97316', '#06B6D4', '#EAB308', '#EF4444', '#64748B'];
+  
+  const roleDistribution = [
+    { name: 'Super Admin', value: 3 },
+    { name: 'Org Admin', value: 12 },
+    { name: 'HR Manager', value: 24 },
+    { name: 'Dept Manager', value: 30 },
+    { name: 'Team Lead', value: 45 },
+    { name: 'Employee', value: 120 },
+    { name: 'Finance', value: 8 },
+    { name: 'IT Admin', value: 5 }
+  ];
 
-  const [orgSearch, setOrgSearch] = useState('');
-  const [adminSearch, setAdminSearch] = useState('');
+  const recentAudits = [
+    { time: '12:04:12', user: 'super_admin', event: 'Rotated global SSL API secrets', status: 'success' },
+    { time: '11:45:00', user: 'finance_lead', event: 'Initiated monthly payroll dispatch', status: 'success' },
+    { time: '11:32:18', user: 'hr_manager', event: 'Created employee file [EMP_884]', status: 'success' },
+    { time: '11:15:45', user: 'it_admin', event: 'Assigned asset ASST_889 to Karan Patel', status: 'success' },
+    { time: '10:55:12', user: 'org_admin', event: 'Onboarded department [R&D]', status: 'success' },
+    { time: '10:44:00', user: 'super_admin', event: 'Suspended legacy org node [TechM]', status: 'success' },
+    { time: '10:12:30', user: 'auditor', event: 'Exported security logs [Q2]', status: 'success' },
+    { time: '09:55:00', user: 'system', event: 'Triggered DB replica shard replication', status: 'success' },
+    { time: '09:30:15', user: 'it_admin', event: 'Reset password for Sneakers_Lead', status: 'success' },
+    { time: '09:00:00', user: 'system', event: 'Performed automatic daily health checklist', status: 'success' }
+  ];
 
-  const [orgSort, setOrgSort] = useState({ key: '', direction: '' });
-  const [adminSort, setAdminSort] = useState({ key: '', direction: '' });
-
-  const [orgForm, setOrgForm] = useState({ name: '', email: '', address: '', subscriptionPlan: 'Basic' });
-  const [adminForm, setAdminForm] = useState({ organizationId: '', name: '', email: '', phone: '', password: '' });
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [orgsRes, usersRes, logsRes] = await Promise.all([
-        api.get('/organizations'),
-        api.get('/users'),
-        api.get('/audit'),
-      ]);
-      setOrgs(orgsRes.data);
-      setUsers(usersRes.data);
-      setLogs(logsRes.data.slice(0, 8));
-    } catch { toast.error('Failed to load dashboard data'); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const admins = users.filter(u => u.role?.name === 'Organization Admin');
-
-  const handleCreateOrg = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/organizations', orgForm);
-      toast.success('Organization created!');
-      setOrgForm({ name: '', email: '', address: '', subscriptionPlan: 'Basic' });
-      setShowOrgModal(false);
-      load();
-    } catch (err) { toast.error(err.response?.data?.error || 'Failed to create org'); }
-  };
-
-  const handleAssignAdmin = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/organizations/assign-admin', adminForm);
-      toast.success('Organization Admin created and assigned!');
-      setAdminForm({ organizationId: '', name: '', email: '', phone: '', password: '' });
-      setShowAdminModal(false);
-      load();
-    } catch (err) { toast.error(err.response?.data?.error || 'Failed to assign admin'); }
-  };
-
-  const handleStatusChange = async (orgId, status) => {
-    try {
-      await api.put(`/organizations/${orgId}/status`, { status });
-      toast.success(`Organization ${status.toLowerCase()}`);
-      load();
-    } catch (err) { toast.error('Failed to update status'); }
-  };
-
-  const handleDeleteOrg = async (orgId, orgName) => {
-    if (window.confirm(`Are you sure you want to permanently delete the organization "${orgName}"? This will delete all associated administrators, employees, departments, and other records under it.`)) {
-      try {
-        await api.delete(`/organizations/${orgId}`);
-        toast.success(`Organization "${orgName}" deleted successfully`);
-        load();
-      } catch (err) {
-        toast.error(err.response?.data?.error || 'Failed to delete organization');
-      }
-    }
-  };
-
-  const handleToggleAdminStatus = async (adminId, isActive) => {
-    const admin = users.find(u => u._id === adminId);
-    if (!isActive && admin && admin.organization?.status === 'Suspended') {
-      toast.error('Cannot activate an administrator account belonging to a suspended organization.');
-      return;
-    }
-    try {
-      await api.put(`/users/${adminId}/status`, { isActive: !isActive });
-      toast.success(`Admin account ${!isActive ? 'activated' : 'suspended'}`);
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to update admin status');
-    }
-  };
-
-  const handleOrgSort = (key) => {
-    setOrgSort(prev => {
-      if (prev.key === key) {
-        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
-      }
-      return { key, direction: 'asc' };
-    });
-  };
-
-  const handleAdminSort = (key) => {
-    setAdminSort(prev => {
-      if (prev.key === key) {
-        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
-      }
-      return { key, direction: 'asc' };
-    });
-  };
-
-  if (loading) return <LoadingSpinner />;
-
-  const filteredOrgs = orgs.filter(org => {
-    const term = orgSearch.toLowerCase();
-    return (
-      org.name?.toLowerCase().includes(term) ||
-      org.email?.toLowerCase().includes(term) ||
-      org.organizationId?.toLowerCase().includes(term) ||
-      org.subscriptionPlan?.toLowerCase().includes(term) ||
-      org.status?.toLowerCase().includes(term)
-    );
-  });
-
-  const sortedOrgs = [...filteredOrgs].sort((a, b) => {
-    if (!orgSort.key) return 0;
-    const aVal = (a[orgSort.key] || '').toString().toLowerCase();
-    const bVal = (b[orgSort.key] || '').toString().toLowerCase();
-    if (aVal < bVal) return orgSort.direction === 'asc' ? -1 : 1;
-    if (aVal > bVal) return orgSort.direction === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const filteredAdmins = admins.filter(admin => {
-    const term = adminSearch.toLowerCase();
-    const phone = admin.employeeRef?.mobile || '';
-    return (
-      admin.username?.toLowerCase().includes(term) ||
-      admin.email?.toLowerCase().includes(term) ||
-      phone.toLowerCase().includes(term) ||
-      admin.organization?.name?.toLowerCase().includes(term) ||
-      (admin.isActive ? 'active' : 'inactive').includes(term)
-    );
-  });
-
-  const sortedAdmins = [...filteredAdmins].sort((a, b) => {
-    if (!adminSort.key) return 0;
-    let aVal = '';
-    let bVal = '';
-
-    if (adminSort.key === 'username') {
-      aVal = a.username || '';
-    } else if (adminSort.key === 'email') {
-      aVal = a.email || '';
-    } else if (adminSort.key === 'phone') {
-      aVal = a.employeeRef?.mobile || '';
-    } else if (adminSort.key === 'organization') {
-      aVal = a.organization?.name || '';
-    } else if (adminSort.key === 'status') {
-      aVal = a.isActive ? 'active' : 'inactive';
-    }
-
-    aVal = aVal.toString().toLowerCase();
-
-    if (adminSort.key === 'username') {
-      bVal = b.username || '';
-    } else if (adminSort.key === 'email') {
-      bVal = b.email || '';
-    } else if (adminSort.key === 'phone') {
-      bVal = b.employeeRef?.mobile || '';
-    } else if (adminSort.key === 'organization') {
-      bVal = b.organization?.name || '';
-    } else if (adminSort.key === 'status') {
-      bVal = b.isActive ? 'active' : 'inactive';
-    }
-
-    bVal = bVal.toString().toLowerCase();
-
-    if (aVal < bVal) return adminSort.direction === 'asc' ? -1 : 1;
-    if (aVal > bVal) return adminSort.direction === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const planCount = (p) => orgs.filter(o => o.subscriptionPlan === p).length;
+  const departmentBreakdown = [
+    { name: 'Engineering', headcount: 85, manager: 'Arjun Mehta', projects: 8 },
+    { name: 'Finance', headcount: 14, manager: 'Sneha Gupta', projects: 3 },
+    { name: 'Human Resources', headcount: 12, manager: 'Riya Sharma', projects: 2 },
+    { name: 'Operations', headcount: 45, manager: 'Amit Verma', projects: 3 },
+    { name: 'Information Technology', headcount: 18, manager: 'Marcus Vane', projects: 2 }
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-2xl p-6 shadow-md">
-        <h2 className="text-2xl font-bold">Welcome, Super Admin 👋</h2>
-        <p className="opacity-80 text-sm mt-1">Logged in as: {superUser?.username || 'Super Admin'} · System-wide control panel</p>
+    <div className="space-y-6 text-slate-800 dark:text-white">
+      {/* System Health Bar */}
+      <div className="glass-card border border-purple-300 dark:border-purple-500/30 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-purple-500/5 via-transparent to-transparent">
+        <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 font-bold text-xs uppercase tracking-wider">
+          <Cpu className="h-4 w-4 text-purple-650 dark:text-purple-400 animate-pulse" />
+          <span>System Vitals Overview</span>
+        </div>
+        <div className="flex items-center gap-6 text-xs text-slate-600 dark:text-slate-350">
+          <div>CPU Usage: <span className="text-purple-700 dark:text-purple-400 font-bold">4%</span></div>
+          <div>RAM Allocation: <span className="text-purple-700 dark:text-purple-400 font-bold">4.6 GB / 8.0 GB</span></div>
+          <div>Database: <span className="text-emerald-600 dark:text-emerald-400 font-bold">CONNECTED</span></div>
+          <div>API Latency: <span className="text-purple-700 dark:text-purple-400 font-bold">16 ms</span></div>
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <StatCard label="Total Organizations" value={orgs.length} color="bg-blue-500" icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
-        <StatCard label="Active Orgs" value={orgs.filter(o => o.status === 'Active').length} color="bg-green-500" icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        <StatCard label="Org Administrators" value={admins.length} color="bg-purple-500" icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        <StatCard label="Audit Events" value={logs.length + '+'} color="bg-indigo-500" icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      {/* Grid KPI Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total Employees" value="247" colorAccent="purple" icon={Users} desc="Org-wide Headcount" />
+        <StatCard label="Departments" value="12" colorAccent="purple" icon={Layers} desc="Across 4 Locations" />
+        <StatCard label="Active Projects" value="18" colorAccent="purple" icon={Activity} desc="In Active Sprint" />
+        <StatCard label="Open Support Tickets" value="34" colorAccent="purple" icon={ShieldAlert} desc="IT / HR Pipelines" />
       </div>
 
-      {/* Plan Distribution */}
-      <div className="grid grid-cols-3 gap-4">
-        {['Basic', 'Premium', 'Enterprise'].map(p => (
-          <div key={p} className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-400 text-center">
-            <p className="text-sm text-gray-500 font-medium">{p} Plan</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">{planCount(p)}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Tab Bar */}
-      <div className="flex gap-2 border-b border-gray-200">
-        {[['orgs', 'Organizations'], ['admins', 'Administrators'], ['logs', 'Recent Audit Logs']].map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 -mb-px transition-colors ${tab === key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Organizations Tab */}
-      {tab === 'orgs' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center px-6 py-4 border-b gap-4">
-            <h4 className="font-bold text-gray-900">All Tenants</h4>
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <input
-                type="text"
-                placeholder="Search organizations..."
-                value={orgSearch}
-                onChange={(e) => setOrgSearch(e.target.value)}
-                className="w-full sm:w-64 border border-gray-300 rounded-md shadow-sm py-1.5 px-3 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              />
-              <Btn variant="primary" onClick={() => setShowOrgModal(true)} className="whitespace-nowrap">+ Create Organization</Btn>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Side Table & Breakdown */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Department Breakdown */}
+          <div className="glass-card border border-purple-200 dark:border-purple-500/20 rounded-2xl p-5">
+            <h3 className="text-xs font-black text-purple-700 dark:text-purple-400 uppercase tracking-widest mb-4">Department breakdown metric</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
+                <thead>
+                  <tr className="text-slate-500 dark:text-slate-400 text-left">
+                    <th className="pb-3 font-semibold">Department</th>
+                    <th className="pb-3 font-semibold">Headcount</th>
+                    <th className="pb-3 font-semibold">Manager</th>
+                    <th className="pb-3 font-semibold">Active Projects</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200">
+                  {departmentBreakdown.map((d, i) => (
+                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                      <td className="py-3 font-bold text-slate-900 dark:text-white">{d.name}</td>
+                      <td className="py-3">{d.headcount} Members</td>
+                      <td className="py-3 text-purple-700 dark:text-purple-300 font-semibold">{d.manager}</td>
+                      <td className="py-3 font-mono">{d.projects} Projects</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
-                <tr>
-                  <th onClick={() => handleOrgSort('organizationId')} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors">
-                    ID {orgSort.key === 'organizationId' ? (orgSort.direction === 'asc' ? '▲' : '▼') : '↕'}
-                  </th>
-                  <th onClick={() => handleOrgSort('name')} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors">
-                    Name {orgSort.key === 'name' ? (orgSort.direction === 'asc' ? '▲' : '▼') : '↕'}
-                  </th>
-                  <th onClick={() => handleOrgSort('email')} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors">
-                    Email {orgSort.key === 'email' ? (orgSort.direction === 'asc' ? '▲' : '▼') : '↕'}
-                  </th>
-                  <th onClick={() => handleOrgSort('subscriptionPlan')} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors">
-                    Plan {orgSort.key === 'subscriptionPlan' ? (orgSort.direction === 'asc' ? '▲' : '▼') : '↕'}
-                  </th>
-                  <th onClick={() => handleOrgSort('status')} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors">
-                    Status {orgSort.key === 'status' ? (orgSort.direction === 'asc' ? '▲' : '▼') : '↕'}
-                  </th>
-                  <th className="px-4 py-3 text-left font-semibold select-none">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {sortedOrgs.length === 0 ? (
-                  <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-400">No organizations found.</td></tr>
-                ) : sortedOrgs.map(org => (
-                  <tr key={org._id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{org.organizationId}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">{org.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{org.email}</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-indigo-50 text-indigo-700">{org.subscriptionPlan}</span>
-                    </td>
-                    <td className="px-4 py-3"><Badge value={org.status} map={STATUS_COLORS} /></td>
-                    <td className="px-4 py-3 space-x-1">
-                      <Btn variant="secondary" className="py-1 px-2 text-xs" onClick={() => { setSelectedOrg(org); setAdminForm(f => ({ ...f, organizationId: org._id })); setShowAdminModal(true); }}>
-                        Assign Admin
-                      </Btn>
-                      {org.status !== 'Active' && (
-                        <Btn variant="success" className="py-1 px-2 text-xs" onClick={() => handleStatusChange(org._id, 'Active')}>Activate</Btn>
-                      )}
-                      {org.status === 'Active' && (
-                        <Btn variant="danger" className="py-1 px-2 text-xs" onClick={() => handleStatusChange(org._id, 'Suspended')}>Suspend</Btn>
-                      )}
-                      <Btn variant="danger" className="py-1 px-2 text-xs bg-red-600 hover:bg-red-700 text-white" onClick={() => handleDeleteOrg(org._id, org.name)}>Delete</Btn>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
-      {/* Admins Tab */}
-      {tab === 'admins' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center px-6 py-4 border-b gap-4">
-            <h4 className="font-bold text-gray-900">Organization Administrators</h4>
-            <div className="w-full sm:w-64">
-              <input
-                type="text"
-                placeholder="Search administrators..."
-                value={adminSearch}
-                onChange={(e) => setAdminSearch(e.target.value)}
-                className="w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-3 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              />
+          {/* Recent Audit Log Feed */}
+          <div className="glass-card border border-purple-200 dark:border-purple-500/20 rounded-2xl p-5">
+            <h3 className="text-xs font-black text-purple-700 dark:text-purple-400 uppercase tracking-widest mb-4">Core Platform Audit Logs</h3>
+            <div className="space-y-3 font-mono text-[10px] text-slate-600 dark:text-slate-350">
+              {recentAudits.map((a, i) => (
+                <div key={i} className="p-2.5 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/40 rounded-xl flex justify-between items-center">
+                  <div>
+                    <span className="text-purple-750 dark:text-purple-400 font-bold">&gt; {a.time}</span>
+                    <span className="text-slate-800 dark:text-white ml-2">[{a.user}]</span>
+                    <p className="text-slate-700 dark:text-slate-300 mt-0.5">{a.event}</p>
+                  </div>
+                  <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-500/20 uppercase font-black tracking-wider text-[8px]">{a.status}</span>
+                </div>
+              ))}
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
-                <tr>
-                  <th onClick={() => handleAdminSort('username')} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors">
-                    Username {adminSort.key === 'username' ? (adminSort.direction === 'asc' ? '▲' : '▼') : '↕'}
-                  </th>
-                  <th onClick={() => handleAdminSort('email')} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors">
-                    Email {adminSort.key === 'email' ? (adminSort.direction === 'asc' ? '▲' : '▼') : '↕'}
-                  </th>
-                  <th onClick={() => handleAdminSort('phone')} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors">
-                    Phone {adminSort.key === 'phone' ? (adminSort.direction === 'asc' ? '▲' : '▼') : '↕'}
-                  </th>
-                  <th onClick={() => handleAdminSort('organization')} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors">
-                    Organization {adminSort.key === 'organization' ? (adminSort.direction === 'asc' ? '▲' : '▼') : '↕'}
-                  </th>
-                  <th onClick={() => handleAdminSort('status')} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors">
-                    Account Status {adminSort.key === 'status' ? (adminSort.direction === 'asc' ? '▲' : '▼') : '↕'}
-                  </th>
-                  <th className="px-4 py-3 text-left font-semibold select-none">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {sortedAdmins.length === 0 ? (
-                  <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-400">No administrators found.</td></tr>
-                ) : sortedAdmins.map(a => (
-                  <tr key={a._id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-semibold text-gray-900">{a.username}</td>
-                    <td className="px-4 py-3 text-gray-600">{a.email}</td>
-                    <td className="px-4 py-3 text-gray-600">{a.employeeRef?.mobile || '—'}</td>
-                    <td className="px-4 py-3 text-blue-600 font-medium">{a.organization?.name || '—'}</td>
-                    <td className="px-4 py-3"><Badge value={a.isActive ? 'Active' : 'Inactive'} map={{ Active: 'bg-green-100 text-green-800', Inactive: 'bg-red-100 text-red-800' }} /></td>
-                    <td className="px-4 py-3 space-x-1">
-                      <Btn variant={a.isActive ? 'danger' : 'success'} className="py-1 px-2 text-xs" onClick={() => handleToggleAdminStatus(a._id, a.isActive)}>
-                        {a.isActive ? 'Suspend' : 'Activate'}
-                      </Btn>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
-      )}
 
-      {/* Audit Logs Tab */}
-      {tab === 'logs' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex items-center justify-between px-6 py-4 border-b">
-            <h4 className="font-bold text-gray-900">Recent System Events</h4>
-            <Link to="/admin/audit" className="text-sm text-blue-600 hover:text-blue-800 font-medium">View all logs →</Link>
+        {/* Right Side Pie Chart */}
+        <div className="glass-card border border-purple-200 dark:border-purple-500/20 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <h3 className="text-xs font-black text-purple-700 dark:text-purple-400 uppercase tracking-widest mb-4">User Role Distribution</h3>
+            <div className="flex justify-center h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={roleDistribution}
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {roleDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={roleColors[index % roleColors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: '#151A30', borderColor: '#4C51BF', color: '#fff' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <div className="divide-y divide-gray-100">
-            {logs.map(log => (
-              <div key={log._id} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50">
-                <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{log.action}</span>
-                <span className="text-sm text-gray-700 flex-1">{log.userRef?.username || 'System'}</span>
-                <span className="text-xs text-gray-400">{new Date(log.createdAt).toLocaleString()}</span>
+
+          <div className="grid grid-cols-2 gap-2 mt-4 text-[10px] text-slate-600 dark:text-slate-300 border-t border-slate-100 dark:border-[#1F2647] pt-4">
+            {roleDistribution.map((r, i) => (
+              <div key={i} className="flex items-center gap-1.5 font-mono">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: roleColors[i % roleColors.length] }} />
+                <span>{r.name}: <span className="text-slate-900 dark:text-white font-bold">{r.value}</span></span>
               </div>
             ))}
           </div>
         </div>
-      )}
-
-      {/* Create Org Modal */}
-      {showOrgModal && (
-        <Modal title="Create New Organization" onClose={() => setShowOrgModal(false)}>
-          <form onSubmit={handleCreateOrg} className="space-y-4">
-            <Field label="Organization Name"><Input required value={orgForm.name} onChange={e => setOrgForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Acme Corporation" /></Field>
-            <Field label="Organization Email"><Input required type="email" value={orgForm.email} onChange={e => setOrgForm(f => ({ ...f, email: e.target.value }))} placeholder="e.g. info@acme.com" /></Field>
-
-            <Field label="Address"><Input value={orgForm.address} onChange={e => setOrgForm(f => ({ ...f, address: e.target.value }))} placeholder="Head office address" /></Field>
-            <Field label="Subscription Plan">
-              <Select value={orgForm.subscriptionPlan} onChange={e => setOrgForm(f => ({ ...f, subscriptionPlan: e.target.value }))}>
-                <option>Basic</option><option>Premium</option><option>Enterprise</option>
-              </Select>
-            </Field>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="primary" className="flex-1">Create Organization</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setShowOrgModal(false)}>Cancel</Btn>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Assign Admin Modal */}
-      {showAdminModal && (
-        <Modal title={`Assign Admin${selectedOrg ? ` — ${selectedOrg.name}` : ''}`} onClose={() => setShowAdminModal(false)}>
-          <form onSubmit={handleAssignAdmin} className="space-y-4">
-            <Field label="Organization">
-              <Input
-                readOnly
-                value={selectedOrg ? selectedOrg.name : ''}
-                className="block w-full bg-gray-100 border border-gray-300 rounded-lg py-2 px-3 text-sm text-gray-500 cursor-not-allowed focus:outline-none"
-              />
-            </Field>
-            <Field label="Admin Full Name"><Input required value={adminForm.name} onChange={e => setAdminForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. John Smith" /></Field>
-            <Field label="Email Address"><Input required type="email" value={adminForm.email} onChange={e => setAdminForm(f => ({ ...f, email: e.target.value }))} placeholder="e.g. john@acme.com" /></Field>
-            <Field label="Phone Number"><Input value={adminForm.phone} onChange={e => setAdminForm(f => ({ ...f, phone: e.target.value }))} placeholder="Phone number" /></Field>
-            <Field label="Temporary Password"><Input required type="password" value={adminForm.password} onChange={e => setAdminForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 8 characters" /></Field>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="success" className="flex-1">Assign Administrator</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setShowAdminModal(false)}>Cancel</Btn>
-            </div>
-          </form>
-        </Modal>
-      )}
+      </div>
     </div>
   );
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ORGANIZATION ADMIN DASHBOARD
+// 2. ORG ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 const OrgAdminDashboard = () => {
-  const { user: orgAdminUser } = useContext(AuthContext);
-  const [tab, setTab] = useState('overview');
-  const [users, setUsers] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [designations, setDesignations] = useState([]);
-  const [policies, setPolicies] = useState([]);
-  const [workShifts, setWorkShifts] = useState([]);
-  const [leaves, setLeaves] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [corrections, setCorrections] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [modalType, setModalType] = useState(null); // 'dept' | 'desig' | 'holiday' | 'shift'
+  const [departments, setDepartments] = useState([
+    { name: 'Engineering', manager: 'Arjun Mehta', headcount: 85, status: 'Active' },
+    { name: 'Finance', manager: 'Sneha Gupta', headcount: 14, status: 'Active' },
+    { name: 'Human Resources', manager: 'Riya Sharma', headcount: 12, status: 'Active' },
+    { name: 'IT Support', manager: 'Marcus Vane', headcount: 18, status: 'Active' },
+    { name: 'Operations', manager: 'Amit Verma', headcount: 45, status: 'Active' }
+  ]);
 
-  // Modals & Form States
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [showDeptModal, setShowDeptModal] = useState(false);
-  const [showDesigModal, setShowDesigModal] = useState(false);
-  const [showPolicyModal, setShowPolicyModal] = useState(false);
-  const [showShiftModal, setShowShiftModal] = useState(false);
+  const [alerts, setAlerts] = useState([
+    { text: 'Missing organization secondary recovery email', type: 'warning' },
+    { text: 'Enforcement of Multi-Factor Authentication pending', type: 'critical' },
+    { text: 'Q3 compliance policies signature pending', type: 'info' }
+  ]);
 
-  const [userForm, setUserForm] = useState({
-    username: '', email: '', password: '', roleName: 'HR Manager',
-    firstName: '', lastName: '', department: '', designation: ''
-  });
-  const [deptForm, setDeptForm] = useState({ name: '', code: '' });
-  const [desigForm, setDesigForm] = useState({ name: '', code: '' });
-  const [policyForm, setPolicyForm] = useState({ title: '', category: 'General', content: '' });
-  const [shiftForm, setShiftForm] = useState({ name: '', startTime: '09:00', endTime: '18:00' });
-
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [usersRes, deptsRes, desigsRes, policiesRes, shiftsRes, leavesRes, tasksRes, correctionsRes] = await Promise.all([
-        api.get('/users'),
-        api.get('/departments'),
-        api.get('/designations').catch(() => ({ data: [] })),
-        api.get('/policies').catch(() => ({ data: [] })),
-        api.get('/workshifts').catch(() => ({ data: [] })),
-        api.get('/leaves').catch(() => ({ data: [] })),
-        api.get('/enterprise/tasks').catch(() => ({ data: [] })),
-        api.get('/enterprise/corrections').catch(() => ({ data: [] })),
-      ]);
-      setUsers(usersRes.data);
-      setDepartments(deptsRes.data);
-      setDesignations(desigsRes.data);
-      setPolicies(policiesRes.data);
-      setWorkShifts(shiftsRes.data);
-      setLeaves(leavesRes.data);
-      setTasks(tasksRes.data);
-      setCorrections(correctionsRes.data);
-    } catch {
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleCreateUser = async (e) => {
+  const handleCreateDept = (e) => {
     e.preventDefault();
-    try {
-      await api.post('/users', userForm);
-      toast.success('User created successfully!');
-      setShowUserModal(false);
-      setUserForm({ username: '', email: '', password: '', roleName: 'HR Manager', firstName: '', lastName: '', department: '', designation: '' });
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to create user');
-    }
+    const name = e.target.deptName.value;
+    const manager = e.target.deptManager.value;
+    if (!name || !manager) return;
+    setDepartments([...departments, { name, manager, headcount: 1, status: 'Active' }]);
+    toast.success('Department created successfully!');
+    setModalType(null);
   };
-
-  const handleCreateDept = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/departments', deptForm);
-      toast.success('Department created!');
-      setShowDeptModal(false);
-      setDeptForm({ name: '', code: '' });
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to create department');
-    }
-  };
-
-  const handleCreateDesig = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/designations', desigForm);
-      toast.success('Designation created!');
-      setShowDesigModal(false);
-      setDesigForm({ name: '', code: '' });
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to create designation');
-    }
-  };
-
-  const handleCreatePolicy = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/policies', policyForm);
-      toast.success('Policy created!');
-      setShowPolicyModal(false);
-      setPolicyForm({ title: '', category: 'General', content: '' });
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to create policy');
-    }
-  };
-
-  const handleCreateShift = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/workshifts', shiftForm);
-      toast.success('Work Shift created!');
-      setShowShiftModal(false);
-      setShiftForm({ name: '', startTime: '09:00', endTime: '18:00' });
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to create work shift');
-    }
-  };
-
-  const handleToggleUser = async (userId, isActive) => {
-    try {
-      await api.put(`/users/${userId}/status`, { isActive: !isActive });
-      toast.success(`User ${!isActive ? 'activated' : 'deactivated'}`);
-      load();
-    } catch {
-      toast.error('Failed to update user status');
-    }
-  };
-
-  const handleDeleteDept = async (id) => {
-    if (!window.confirm('Delete department?')) return;
-    try {
-      await api.delete(`/departments/${id}`);
-      toast.success('Department deleted');
-      load();
-    } catch {
-      toast.error('Failed to delete department');
-    }
-  };
-
-  const handleDeleteDesig = async (id) => {
-    if (!window.confirm('Delete designation?')) return;
-    try {
-      await api.delete(`/designations/${id}`);
-      toast.success('Designation deleted');
-      load();
-    } catch {
-      toast.error('Failed to delete designation');
-    }
-  };
-
-  const handleDeletePolicy = async (id) => {
-    if (!window.confirm('Delete policy?')) return;
-    try {
-      await api.delete(`/policies/${id}`);
-      toast.success('Policy deleted');
-      load();
-    } catch {
-      toast.error('Failed to delete policy');
-    }
-  };
-
-  const handleDeleteShift = async (id) => {
-    if (!window.confirm('Delete shift?')) return;
-    try {
-      await api.delete(`/workshifts/${id}`);
-      toast.success('Work shift deleted');
-      load();
-    } catch {
-      toast.error('Failed to delete work shift');
-    }
-  };
-
-  if (loading) return <LoadingSpinner />;
-
-  // Computed Stats
-  const totalEmployees = users.filter(u => ['Employee', 'Manager', 'Team Lead', 'HR Manager', 'Finance', 'IT Administrator'].includes(u.role?.name)).length;
-  const activeProjects = tasks.filter(t => t.status === 'In Progress').length;
-  const pendingApprovalsCount = leaves.filter(l => l.status === 'Pending').length + corrections.filter(c => c.status === 'Pending').length;
-
-  // Exclude own account and other Organization Admin accounts from the Users table
-  // (Org Admin should not see/deactivate their own account or other admins in the user management table)
-  const filteredUsers = users.filter(u => {
-    if (u.role?.name === 'Organization Admin') return false; // hide all org admin accounts
-    const q = searchQuery.toLowerCase();
-    return u.username?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.name?.toLowerCase().includes(q);
-  });
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-2xl p-6 shadow-md">
-        <h2 className="text-2xl font-bold">Welcome, Organization Admin 👋</h2>
-        <p className="opacity-80 text-sm mt-1">Logged in as: {orgAdminUser?.username || 'Admin'} · Organization Management Panel</p>
+    <div className="space-y-6 text-slate-800 dark:text-white">
+      {/* Alert Notifications */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((a, idx) => (
+            <div key={idx} className={`p-3 border rounded-xl flex items-center justify-between text-xs font-medium ${a.type === 'critical' ? 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-400' : a.type === 'warning' ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400' : 'bg-blue-500/10 border-blue-500/30 text-blue-700 dark:text-blue-400'}`}>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                <span>{a.text}</span>
+              </div>
+              <button onClick={() => setAlerts(alerts.filter((_, i) => i !== idx))} className="hover:text-slate-900 dark:hover:text-white font-bold">&times;</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Grid KPI Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Active Locations" value="3 Offices" colorAccent="blue" icon={Layers} desc="Bangalore, London, NY" />
+        <StatCard label="Corporate Holidays" value="14 Days" colorAccent="blue" icon={Calendar} desc="Year 2026 Calendar" />
+        <StatCard label="Total Designations" value="18 Profiles" colorAccent="blue" icon={Award} desc="Grade Scale Levels" />
+        <StatCard label="Staff Shifts" value="4 Active" colorAccent="blue" icon={Clock} desc="24/7 Ops Coverage" />
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        <StatCard label="Total Employees" value={totalEmployees} color="bg-blue-500" icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        <StatCard label="Departments" value={departments.length} color="bg-purple-500" icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
-        <StatCard label="Active Projects" value={activeProjects} color="bg-green-500" icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        <StatCard label="Open Positions" value="5" color="bg-teal-500" icon="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        <StatCard label="Pending Approvals" value={pendingApprovalsCount} color="bg-yellow-500" icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </div>
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Tree & Card Layouts */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Org tree structure visual */}
+          <div className="glass-card border border-blue-500/20 rounded-2xl p-5">
+            <h3 className="text-xs font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest mb-4">Corporate Hierarchy Tree</h3>
+            <div className="flex flex-col items-center justify-center p-4 border border-slate-200 dark:border-blue-500/10 bg-slate-50/50 dark:bg-[#0E1325]/30 rounded-xl relative">
+              <div className="px-5 py-2.5 bg-blue-600 border border-blue-500 rounded-xl font-black text-xs uppercase shadow text-center text-white">TechNova Global Head</div>
+              
+              {/* Vertical link line */}
+              <div className="h-8 w-0.5 bg-blue-500/40 my-1" />
 
-      {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto border-b border-gray-200">
-        {[
-          ['overview', 'Overview'],
-          ['users', 'Manage Users'],
-          ['depts', 'Departments'],
-          ['desigs', 'Designations'],
-          ['shifts', 'Work Shifts'],
-          ['policies', 'Policies']
-        ].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 -mb-px whitespace-nowrap transition-colors ${tab === k ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {l}
-          </button>
-        ))}
-      </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full pt-1">
+                {departments.slice(0, 3).map((d, i) => (
+                  <div key={i} className="flex flex-col items-center">
+                    <div className="h-4 w-0.5 bg-blue-500/40" />
+                    <div className="w-full p-3 bg-white dark:bg-[#1A203E]/80 border border-slate-200 dark:border-blue-500/20 rounded-xl text-center text-xs font-semibold shadow-sm">
+                      <p className="font-bold text-slate-800 dark:text-white uppercase">{d.name}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Mgr: {d.manager}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
-      {/* Overview tab */}
-      {tab === 'overview' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-xl shadow border border-gray-200 space-y-4">
-            <h4 className="font-bold text-gray-900 text-lg">Organization Directory Overview</h4>
-            <p className="text-sm text-gray-500">Quick count breakdown of all system accounts configured inside your organization:</p>
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { r: 'HR Manager', l: 'HR Managers' },
-                { r: 'Finance', l: 'Finance Executives' },
-                { r: 'IT Administrator', l: 'IT Administrators' },
-                { r: 'Manager', l: 'Department Managers' },
-                { r: 'Team Lead', l: 'Team Leads' },
-                { r: 'Employee', l: 'Employees' }
-              ].map(item => (
-                <div key={item.r} className="bg-gray-50 p-3 rounded-lg border border-gray-100 flex justify-between items-center">
-                  <span className="text-xs font-semibold text-gray-600">{item.l}</span>
-                  <span className="text-lg font-bold text-gray-900">{users.filter(u => u.role?.name === item.r).length}</span>
+          {/* Department cards list */}
+          <div className="glass-card border border-blue-500/20 rounded-2xl p-5">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xs font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest">Company Departments</h3>
+              <button onClick={() => setModalType('dept')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 transition-all"><Plus className="h-3.5 w-3.5" /> New Dept</button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {departments.map((d, i) => (
+                <div key={i} className="p-4 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/40 rounded-xl flex justify-between items-center">
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-white">{d.name}</h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Manager: <span className="text-blue-700 dark:text-blue-300 font-semibold">{d.manager}</span></p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Headcount: <span className="text-slate-850 dark:text-white font-bold">{d.headcount}</span></p>
+                  </div>
+                  <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full border border-emerald-500/20 text-[9px] uppercase tracking-widest font-black">{d.status}</span>
                 </div>
               ))}
             </div>
           </div>
+        </div>
 
-          <div className="bg-white p-6 rounded-xl shadow border border-gray-200 space-y-4">
-            <h4 className="font-bold text-gray-900 text-lg">Organization Details</h4>
-            <div className="space-y-3 text-sm text-gray-700">
-              <p><strong>Departments:</strong> {departments.map(d => `${d.name} (${d.code})`).join(', ') || 'None created yet'}</p>
-              <p><strong>Designations:</strong> {designations.map(d => d.name).join(', ') || 'None created yet'}</p>
-              <p><strong>Work Shifts:</strong> {workShifts.map(s => `${s.name} (${s.startTime}-${s.endTime})`).join(', ') || 'None created yet'}</p>
-              <p><strong>Active Policies:</strong> {policies.length} uploaded policies</p>
+        {/* Right Panel Actions & Locations */}
+        <div className="space-y-6">
+          {/* Quick Actions Panel */}
+          <div className="glass-card border border-blue-500/20 rounded-2xl p-5 space-y-4">
+            <h3 className="text-xs font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest">Global Administrative Actions</h3>
+            <div className="flex flex-col gap-2.5">
+              <button onClick={() => setModalType('dept')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-blue-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-blue-600/10 border border-slate-200 dark:border-[#1F2647] hover:border-blue-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Create New Department</span><ArrowRight className="h-4 w-4 text-blue-655 dark:text-blue-400" /></button>
+              <button onClick={() => setModalType('desig')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-blue-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-blue-600/10 border border-slate-200 dark:border-[#1F2647] hover:border-blue-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Configure Designations</span><ArrowRight className="h-4 w-4 text-blue-655 dark:text-blue-400" /></button>
+              <button onClick={() => setModalType('holiday')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-blue-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-blue-600/10 border border-slate-200 dark:border-[#1F2647] hover:border-blue-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Set Corporate Holiday</span><ArrowRight className="h-4 w-4 text-blue-655 dark:text-blue-400" /></button>
+              <button onClick={() => setModalType('shift')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-blue-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-blue-600/10 border border-slate-200 dark:border-[#1F2647] hover:border-blue-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Modify Roster Work Shifts</span><ArrowRight className="h-4 w-4 text-blue-655 dark:text-blue-400" /></button>
+            </div>
+          </div>
+
+          {/* Office Locations */}
+          <div className="glass-card border border-blue-500/20 rounded-2xl p-5">
+            <h3 className="text-xs font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest mb-4">Office Location Nodes</h3>
+            <div className="space-y-3 font-mono text-[10px] text-slate-600 dark:text-slate-350">
+              <div className="p-2.5 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/20 rounded-xl">
+                <span className="text-blue-700 dark:text-blue-400 font-bold">BANGALORE HQ (Primary)</span>
+                <p className="text-slate-500 dark:text-slate-400 mt-0.5">E-City Outer Ring, Block D, Bangalore, KA</p>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1">Total Employees: 180</p>
+              </div>
+              <div className="p-2.5 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/20 rounded-xl">
+                <span className="text-blue-700 dark:text-blue-400 font-bold">LONDON TECH (Branch Office)</span>
+                <p className="text-slate-500 dark:text-slate-400 mt-0.5">32 Finsbury Square, London, EC2A 1DX</p>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1">Total Employees: 45</p>
+              </div>
+              <div className="p-2.5 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/20 rounded-xl">
+                <span className="text-blue-700 dark:text-blue-400 font-bold">NEW YORK SALON (Hub)</span>
+                <p className="text-slate-500 dark:text-slate-400 mt-0.5">Times Square Broadway Plaza, Suite 4B, NY</p>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1">Total Employees: 22</p>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Users Tab */}
-      {tab === 'users' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-b gap-4">
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <h4 className="font-bold text-gray-900 text-lg">User Accounts</h4>
-              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search name, email, role..." className="border border-gray-300 rounded-lg py-1 px-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 w-48" />
-            </div>
-            <Btn variant="primary" onClick={() => setShowUserModal(true)}>+ Add User Account</Btn>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>
-                  {['Name', 'Email', 'Role', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredUsers.length === 0 ? (
-                  <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-400">No user accounts found.</td></tr>
-                ) : (
-                  filteredUsers.map(u => (
-                    <tr key={u._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-gray-900">{u.username}</td>
-                      <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">
-                          {u.role?.name === 'Finance' ? 'Finance Executive' : u.role?.name === 'Manager' ? 'Department Manager' : u.role?.name}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge value={u.isActive ? 'Active' : 'Inactive'} map={{ Active: 'bg-green-100 text-green-800', Inactive: 'bg-red-100 text-red-800' }} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <Btn variant={u.isActive ? 'danger' : 'success'} className="py-1 px-2 text-xs font-semibold" onClick={() => handleToggleUser(u._id, u.isActive)}>
-                          {u.isActive ? 'Deactivate' : 'Activate'}
-                        </Btn>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Local Modals */}
+      <AnimatePresence>
+        {modalType === 'dept' && (
+          <LocalModal title="Add New Department" onClose={() => setModalType(null)}>
+            <form onSubmit={handleCreateDept} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="block text-slate-500 dark:text-slate-400 font-semibold">Department Name</label>
+                <input name="deptName" required type="text" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500" placeholder="e.g. Research and Development" />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-slate-500 dark:text-slate-400 font-semibold">Department Manager</label>
+                <input name="deptManager" required type="text" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500" placeholder="e.g. Elena Rostova" />
+              </div>
+              <div className="pt-2">
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-all">Submit Entry</button>
+              </div>
+            </form>
+          </LocalModal>
+        )}
 
-      {/* Departments Tab */}
-      {tab === 'depts' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex justify-between items-center px-6 py-4 border-b">
-            <h4 className="font-bold text-gray-900 text-lg">Departments</h4>
-            <Btn variant="primary" onClick={() => setShowDeptModal(true)}>+ Add Department</Btn>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-6">
-            {departments.length === 0 ? (
-              <p className="col-span-3 text-center text-gray-400 py-8">No departments defined yet.</p>
-            ) : (
-              departments.map(d => (
-                <div key={d._id} className="border border-gray-200 rounded-lg p-4 flex items-center justify-between bg-gray-50 hover:bg-white transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">{d.code.slice(0, 2)}</div>
-                    <div>
-                      <p className="font-semibold text-gray-900">{d.name}</p>
-                      <p className="text-xs text-gray-400 font-mono">{d.code}</p>
-                    </div>
-                  </div>
-                  <button onClick={() => handleDeleteDept(d._id)} className="text-red-500 hover:text-red-700 text-lg">&times;</button>
+        {modalType === 'desig' && (
+          <LocalModal title="Add New Designation" onClose={() => setModalType(null)}>
+            <form onSubmit={(e) => { e.preventDefault(); toast.success('Designation Added!'); setModalType(null); }} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="block text-slate-500 dark:text-slate-400 font-semibold">Designation Title</label>
+                <input required type="text" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500" placeholder="e.g. Lead Devops Architect" />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-slate-500 dark:text-slate-400 font-semibold">Grade Level</label>
+                <select className="w-full bg-slate-50 dark:bg-[#0E1325] border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500">
+                  <option>Grade L1 - Entry</option>
+                  <option>Grade L2 - Intermediate</option>
+                  <option>Grade L3 - Specialist</option>
+                  <option>Grade L4 - Director</option>
+                </select>
+              </div>
+              <div className="pt-2">
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-all">Submit Designation</button>
+              </div>
+            </form>
+          </LocalModal>
+        )}
+
+        {modalType === 'holiday' && (
+          <LocalModal title="Configure Calendar Holiday" onClose={() => setModalType(null)}>
+            <form onSubmit={(e) => { e.preventDefault(); toast.success('Holiday Calendar Updated!'); setModalType(null); }} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="block text-slate-500 dark:text-slate-400 font-semibold">Holiday Occasion</label>
+                <input required type="text" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500" placeholder="e.g. Independence Day Parade" />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-slate-500 dark:text-slate-400 font-semibold">Scheduled Date</label>
+                <input required type="date" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="pt-2">
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-all">Save Calendar</button>
+              </div>
+            </form>
+          </LocalModal>
+        )}
+
+        {modalType === 'shift' && (
+          <LocalModal title="Configure Work Shifts" onClose={() => setModalType(null)}>
+            <form onSubmit={(e) => { e.preventDefault(); toast.success('Shifts Configured!'); setModalType(null); }} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="block text-slate-500 dark:text-slate-400 font-semibold">Shift Name</label>
+                <input required type="text" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500" placeholder="e.g. EMEA Night Shift" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-slate-500 dark:text-slate-400 font-semibold">Start Time</label>
+                  <input required type="time" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500" />
                 </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Designations Tab */}
-      {tab === 'desigs' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex justify-between items-center px-6 py-4 border-b">
-            <h4 className="font-bold text-gray-900 text-lg">Designations</h4>
-            <Btn variant="primary" onClick={() => setShowDesigModal(true)}>+ Add Designation</Btn>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-6">
-            {designations.length === 0 ? (
-              <p className="col-span-3 text-center text-gray-400 py-8">No designations defined yet.</p>
-            ) : (
-              designations.map(d => (
-                <div key={d._id} className="border border-gray-200 rounded-lg p-4 flex items-center justify-between bg-gray-50 hover:bg-white transition-colors">
-                  <div>
-                    <p className="font-semibold text-gray-900">{d.name}</p>
-                    <p className="text-xs text-gray-400 font-mono">{d.code}</p>
-                  </div>
-                  <button onClick={() => handleDeleteDesig(d._id)} className="text-red-500 hover:text-red-700 text-lg">&times;</button>
+                <div className="space-y-1">
+                  <label className="block text-slate-500 dark:text-slate-400 font-semibold">End Time</label>
+                  <input required type="time" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500" />
                 </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Work Shifts Tab */}
-      {tab === 'shifts' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex justify-between items-center px-6 py-4 border-b">
-            <h4 className="font-bold text-gray-900 text-lg">Work Shifts</h4>
-            <Btn variant="primary" onClick={() => setShowShiftModal(true)}>+ Add Work Shift</Btn>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-6">
-            {workShifts.length === 0 ? (
-              <p className="col-span-3 text-center text-gray-400 py-8">No shifts defined yet.</p>
-            ) : (
-              workShifts.map(s => (
-                <div key={s._id} className="border border-gray-200 rounded-lg p-4 flex items-center justify-between bg-gray-50 hover:bg-white transition-colors">
-                  <div>
-                    <p className="font-semibold text-gray-900">{s.name}</p>
-                    <p className="text-xs text-gray-500">{s.startTime} — {s.endTime}</p>
-                  </div>
-                  <button onClick={() => handleDeleteShift(s._id)} className="text-red-500 hover:text-red-700 text-lg">&times;</button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Policies Tab */}
-      {tab === 'policies' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex justify-between items-center px-6 py-4 border-b">
-            <h4 className="font-bold text-gray-900 text-lg">Organization Policies</h4>
-            <Btn variant="primary" onClick={() => setShowPolicyModal(true)}>+ Add Policy Document</Btn>
-          </div>
-          <div className="p-6 space-y-4">
-            {policies.length === 0 ? (
-              <p className="text-center text-gray-400 py-8">No active policies found.</p>
-            ) : (
-              policies.map(p => (
-                <div key={p._id} className="border border-gray-100 rounded-xl p-4 bg-gray-50 flex justify-between items-start gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 text-xs font-bold bg-orange-100 text-orange-800 rounded">{p.category}</span>
-                      <h5 className="font-bold text-gray-900">{p.title}</h5>
-                    </div>
-                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{p.content}</p>
-                  </div>
-                  <Btn variant="danger" className="py-1 px-2 text-xs font-semibold" onClick={() => handleDeletePolicy(p._id)}>Remove</Btn>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Create User Modal */}
-      {showUserModal && (
-        <Modal title="Create Organization User" onClose={() => setShowUserModal(false)}>
-          <form onSubmit={handleCreateUser} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="First Name"><Input required value={userForm.firstName} onChange={e => setUserForm(f => ({ ...f, firstName: e.target.value }))} /></Field>
-              <Field label="Last Name"><Input required value={userForm.lastName} onChange={e => setUserForm(f => ({ ...f, lastName: e.target.value }))} /></Field>
-              <Field label="Username"><Input required value={userForm.username} onChange={e => setUserForm(f => ({ ...f, username: e.target.value }))} /></Field>
-              <Field label="Email"><Input required type="email" value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))} /></Field>
-              <Field label="Temporary Password"><Input required type="password" value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 8 chars" /></Field>
-              <Field label="Role">
-                <Select value={userForm.roleName} onChange={e => setUserForm(f => ({ ...f, roleName: e.target.value }))}>
-                  <option value="HR Manager">HR Manager</option>
-                  <option value="Finance">Finance Executive</option>
-                  <option value="IT Administrator">IT Administrator</option>
-                  <option value="Manager">Department Manager</option>
-                  <option value="Team Lead">Team Lead</option>
-                </Select>
-              </Field>
-              <Field label="Department">
-                <Select value={userForm.department} onChange={e => setUserForm(f => ({ ...f, department: e.target.value }))}>
-                  <option value="">Select department...</option>
-                  {departments.map(d => <option key={d._id} value={d.name}>{d.name}</option>)}
-                </Select>
-              </Field>
-              <Field label="Designation">
-                <Select value={userForm.designation} onChange={e => setUserForm(f => ({ ...f, designation: e.target.value }))}>
-                  <option value="">Select designation...</option>
-                  {designations.map(d => <option key={d._id} value={d.name}>{d.name}</option>)}
-                </Select>
-              </Field>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="primary" className="flex-1">Create User</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setShowUserModal(false)}>Cancel</Btn>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Create Dept Modal */}
-      {showDeptModal && (
-        <Modal title="Create Department" onClose={() => setShowDeptModal(false)}>
-          <form onSubmit={handleCreateDept} className="space-y-4">
-            <Field label="Department Name"><Input required value={deptForm.name} onChange={e => setDeptForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Engineering" /></Field>
-            <Field label="Department Code"><Input required value={deptForm.code} onChange={e => setDeptForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="e.g. ENG" /></Field>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="primary" className="flex-1">Create</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setShowDeptModal(false)}>Cancel</Btn>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Create Designation Modal */}
-      {showDesigModal && (
-        <Modal title="Create Designation" onClose={() => setShowDesigModal(false)}>
-          <form onSubmit={handleCreateDesig} className="space-y-4">
-            <Field label="Designation Name"><Input required value={desigForm.name} onChange={e => setDesigForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Senior Software Engineer" /></Field>
-            <Field label="Designation Code"><Input required value={desigForm.code} onChange={e => setDesigForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="e.g. SSE" /></Field>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="primary" className="flex-1">Create</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setShowDesigModal(false)}>Cancel</Btn>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Create Policy Modal */}
-      {showPolicyModal && (
-        <Modal title="Create Policy Document" onClose={() => setShowPolicyModal(false)}>
-          <form onSubmit={handleCreatePolicy} className="space-y-4">
-            <Field label="Policy Title"><Input required value={policyForm.title} onChange={e => setPolicyForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Remote Work Guidelines" /></Field>
-            <Field label="Category"><Input required value={policyForm.category} onChange={e => setPolicyForm(f => ({ ...f, category: e.target.value }))} placeholder="e.g. HR / Compliance / Security" /></Field>
-            <Field label="Content Details">
-              <textarea required value={policyForm.content} onChange={e => setPolicyForm(f => ({ ...f, content: e.target.value }))} rows={4} className="block w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Type policy details..." />
-            </Field>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="primary" className="flex-1">Create</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setShowPolicyModal(false)}>Cancel</Btn>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Create Shift Modal */}
-      {showShiftModal && (
-        <Modal title="Create Work Shift" onClose={() => setShowShiftModal(false)}>
-          <form onSubmit={handleCreateShift} className="space-y-4">
-            <Field label="Shift Name"><Input required value={shiftForm.name} onChange={e => setShiftForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Night Shift" /></Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Start Time"><Input required type="time" value={shiftForm.startTime} onChange={e => setShiftForm(f => ({ ...f, startTime: e.target.value }))} /></Field>
-              <Field label="End Time"><Input required type="time" value={shiftForm.endTime} onChange={e => setShiftForm(f => ({ ...f, endTime: e.target.value }))} /></Field>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="primary" className="flex-1">Create</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setShowShiftModal(false)}>Cancel</Btn>
-            </div>
-          </form>
-        </Modal>
-      )}
+              </div>
+              <div className="pt-2">
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-all">Apply Config</button>
+              </div>
+            </form>
+          </LocalModal>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// HR MANAGER DASHBOARD
+// 3. HR MANAGER DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 const HRManagerDashboard = () => {
-  const { user: hrUser } = useContext(AuthContext);
-  const [tab, setTab] = useState('employees');
-  const [employees, setEmployees] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [leaves, setLeaves] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({
-    firstName: '', lastName: '', email: '', phone: '',
-    department: '', designation: '', roleName: 'Employee', joiningDate: ''
+  const [pipeline] = useState({
+    Applied: 105,
+    Interview: 42,
+    Offer: 15,
+    Joined: 9,
+    Rejected: 33
   });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [empRes, deptRes, leaveRes] = await Promise.all([
-        api.get('/employees'),
-        api.get('/departments'),
-        api.get('/leaves'),
-      ]);
-      setEmployees(empRes.data);
-      setDepartments(deptRes.data);
-      setLeaves(leaveRes.data);
-    } catch { toast.error('Failed to load data'); }
-    finally { setLoading(false); }
-  }, []);
+  const [leaves, setLeaves] = useState([
+    { _id: 'lv1', name: 'Riya Sharma', type: 'Sick Leave', range: '2026-07-06 to 2026-07-08', status: 'Pending' },
+    { _id: 'lv2', name: 'Karan Patel', type: 'Earned Leave', range: '2026-07-12 to 2026-07-15', status: 'Pending' },
+    { _id: 'lv3', name: 'Priya Singh', type: 'Casual Leave', range: '2026-07-20 to 2026-07-21', status: 'Pending' }
+  ]);
 
-  useEffect(() => { load(); }, [load]);
+  const [newJoiners] = useState([
+    { name: 'Sarah Jenkins', dept: 'Engineering', date: '2026-07-01', status: 'Completed onboarding' },
+    { name: 'Elena Rostova', dept: 'IT Operations', date: '2026-07-01', status: 'Access provisioned' },
+    { name: 'Alex Kovac', dept: 'Finance Systems', date: '2026-07-02', status: 'Training Phase' },
+    { name: 'Marcus Vane', dept: 'Information Security', date: '2026-07-05', status: 'Profile Active' },
+    { name: 'Karan Patel', dept: 'Engineering', date: '2026-07-05', status: 'Laptops Configured' }
+  ]);
 
-  const handleCreateEmployee = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await api.post('/employees', form);
-      toast.success('Employee created!');
-      alert(`Credentials:\nUsername: ${res.data.credentials?.username}\nTemp Password: ${res.data.credentials?.temporaryPassword}`);
-      setShowModal(false);
-      setForm({ firstName: '', lastName: '', email: '', phone: '', department: '', designation: '', roleName: 'Employee', joiningDate: '' });
-      load();
-    } catch (err) { toast.error(err.response?.data?.error || 'Failed to create employee'); }
+  const attendanceAlerts = [
+    { name: 'Rohit Das', rate: '71%', icon: '📉' },
+    { name: 'Sneha Gupta', rate: '74%', icon: '📉' }
+  ];
+
+  const handleLeaveAction = (id, action) => {
+    setLeaves(leaves.map(l => l._id === id ? { ...l, status: action } : l));
+    toast.success(`Leave request ${action.toLowerCase()}!`);
   };
-
-  const handleToggleSuspend = async (emp) => {
-    const isSuspended = !emp.userRef?.isActive;
-    const action = isSuspended ? 'activate' : 'suspend';
-    if (!window.confirm(`Are you sure you want to ${action} ${emp.firstName} ${emp.lastName}'s account?`)) return;
-    try {
-      await api.put(`/users/${emp.userRef?._id}/status`, { isActive: isSuspended });
-      toast.success(`Employee account ${isSuspended ? 'activated' : 'suspended'} successfully`);
-      load();
-    } catch (err) { toast.error(err.response?.data?.error || `Failed to ${action} employee`); }
-  };
-
-  const handleDeleteEmployee = async (id, name) => {
-    if (!window.confirm(`Permanently delete ${name}'s record? This cannot be undone.`)) return;
-    try {
-      await api.delete(`/employees/${id}`);
-      toast.success('Employee record deleted');
-      load();
-    } catch { toast.error('Failed to delete employee'); }
-  };
-
-  if (loading) return <LoadingSpinner />;
-
-  // Filter out Org Admins, HR Managers, and Archived employees from the directory
-  const visibleEmployees = employees.filter(e => {
-    const role = e.userRef?.role?.name;
-    return role !== 'Organization Admin' && role !== 'HR Manager' && e.status !== 'Archived';
-  });
-
-  const active = visibleEmployees.filter(e => e.status === 'Active').length;
-  const allActive = employees.filter(e => e.status === 'Active').length;
-  const onLeave = employees.filter(e => e.status === 'On Leave').length;
-  const pendingLeaves = leaves.filter(l => l.status === 'Pending').length;
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl p-6 shadow-md">
-        <h2 className="text-2xl font-bold">Welcome, HR Manager 👋</h2>
-        <p className="opacity-80 text-sm mt-1">Logged in as: {hrUser?.username || 'HR Manager'} · Human Resources Management Panel</p>
+    <div className="space-y-6 text-slate-800 dark:text-white">
+      {/* Grid KPI Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Recruitment Pipeline" value="180 Candidates" colorAccent="teal" icon={Users} desc="All Active Openings" />
+        <StatCard label="Active Leaves" value="12 Members" colorAccent="teal" icon={Calendar} desc="This Week Roster" />
+        <StatCard label="Open Job Postings" value="6 Roles" colorAccent="teal" icon={Briefcase} desc="3 Referral Bonuses Active" />
+        <StatCard label="Monthly New Hires" value="9 Onboarded" colorAccent="teal" icon={Award} desc="2 Pending Verification" />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard label="Total Staff" value={visibleEmployees.length} color="bg-blue-500" icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        <StatCard label="Active" value={active} color="bg-green-500" icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        <StatCard label="On Leave" value={onLeave} color="bg-yellow-500" icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        <StatCard label="Departments" value={departments.length} color="bg-purple-500" icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
-      </div>
-
-      <div className="flex gap-2 border-b border-gray-200">
-        {[['employees', 'Employee Records'], ['leaves', `Leave Tracker${pendingLeaves > 0 ? ` (${pendingLeaves} pending)` : ''}`]].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 -mb-px transition-colors ${tab === k ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'employees' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex justify-between items-center px-6 py-4 border-b">
-            <h4 className="font-bold text-gray-900">Employee Directory</h4>
-            <Btn variant="primary" onClick={() => setShowModal(true)}>+ Add Employee</Btn>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Employee', 'ID', 'Department', 'Designation', 'Joining Date', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {visibleEmployees.length === 0
-                  ? <tr><td colSpan="7" className="px-6 py-8 text-center text-gray-400">No employees found.</td></tr>
-                  : visibleEmployees.map(emp => (
-                    <tr key={emp._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-xs">{emp.firstName?.[0]}{emp.lastName?.[0]}</div>
-                          <div>
-                            <p className="font-semibold text-gray-900">{emp.firstName} {emp.lastName}</p>
-                            <p className="text-xs text-gray-400">{emp.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{emp.employeeId}</td>
-                      <td className="px-4 py-3 text-gray-600">{emp.department}</td>
-                      <td className="px-4 py-3 text-gray-600">{emp.designation}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{new Date(emp.joiningDate).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        {(() => {
-                          const isSuspended = emp.userRef?.isActive === false;
-                          const statusLabel = isSuspended ? 'Suspended' : (emp.status || 'Active');
-                          const statusColor = isSuspended
-                            ? 'bg-orange-100 text-orange-800'
-                            : emp.status === 'Active' ? 'bg-green-100 text-green-800'
-                            : emp.status === 'On Leave' ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-gray-100 text-gray-600';
-                          return <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${statusColor}`}>{statusLabel}</span>;
-                        })()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1 flex-wrap">
-                          <Btn
-                            variant={emp.userRef?.isActive !== false ? 'danger' : 'success'}
-                            className="py-1 px-2 text-xs"
-                            onClick={() => handleToggleSuspend(emp)}
-                          >
-                            {emp.userRef?.isActive !== false ? 'Suspend' : 'Activate'}
-                          </Btn>
-                          <Btn
-                            variant="secondary"
-                            className="py-1 px-2 text-xs !text-red-600 !border-red-300 hover:!bg-red-50"
-                            onClick={() => handleDeleteEmployee(emp._id, `${emp.firstName} ${emp.lastName}`)}
-                          >
-                            Delete
-                          </Btn>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {tab === 'leaves' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="px-6 py-4 border-b"><h4 className="font-bold text-gray-900">Leave Requests Overview</h4></div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Employee', 'Type', 'Duration', 'Reason', 'Status'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {leaves.length === 0
-                  ? <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-400">No leave requests found.</td></tr>
-                  : leaves.map(l => (
-                    <tr key={l._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-gray-900">{l.employee?.firstName} {l.employee?.lastName}</td>
-                      <td className="px-4 py-3"><span className="text-xs font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{l.type}</span></td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{new Date(l.startDate).toLocaleDateString()} → {new Date(l.endDate).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{l.reason}</td>
-                      <td className="px-4 py-3"><Badge value={l.status} map={LEAVE_STATUS_COLORS} /></td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {showModal && (
-        <Modal title="Onboard New Employee" onClose={() => setShowModal(false)}>
-          <form onSubmit={handleCreateEmployee} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="First Name"><Input required value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} /></Field>
-              <Field label="Last Name"><Input required value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} /></Field>
-              <Field label="Email"><Input required type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></Field>
-              <Field label="Phone"><Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></Field>
-              <Field label="Department">
-                {departments.length > 0 ? (
-                  <Select required value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))}>
-                    <option value="">Select department...</option>
-                    {departments.map(d => <option key={d._id} value={d.name}>{d.name}</option>)}
-                  </Select>
-                ) : (
-                  <Input required value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} placeholder="No departments yet, type manually" />
-                )}
-              </Field>
-              <Field label="Designation"><Input required value={form.designation} onChange={e => setForm(f => ({ ...f, designation: e.target.value }))} /></Field>
-              <Field label="Joining Date"><Input required type="date" value={form.joiningDate} onChange={e => setForm(f => ({ ...f, joiningDate: e.target.value }))} /></Field>
-              <Field label="Role">
-                <Select value={form.roleName} onChange={e => setForm(f => ({ ...f, roleName: e.target.value }))}>
-                  <option value="Employee">Employee</option>
-                </Select>
-              </Field>
+      {/* Recruitment Pipeline Banner */}
+      <div className="glass-card border border-teal-500/20 rounded-2xl p-5">
+        <h3 className="text-xs font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest mb-4">Candidate Recruitment Pipeline</h3>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {Object.entries(pipeline).map(([key, val], idx) => (
+            <div key={idx} className="p-4 rounded-xl border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/45 text-center relative overflow-hidden">
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-black tracking-widest">{key}</p>
+              <p className="text-2xl font-black text-teal-750 dark:text-teal-300 mt-2">{val}</p>
+              <div className="absolute top-0 right-0 h-10 w-10 bg-teal-500/5 rounded-full blur-md" />
             </div>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="primary" className="flex-1">Create Employee Account</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setShowModal(false)}>Cancel</Btn>
+          ))}
+        </div>
+      </div>
+
+      {/* Main content grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Side: Leaves and New Joiners */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Leave approvals */}
+          <div className="glass-card border border-teal-500/20 rounded-2xl p-5">
+            <h3 className="text-xs font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest mb-4">Pending Leave Approvals</h3>
+            {leaves.filter(l => l.status === 'Pending').length === 0 ? (
+              <p className="text-xs text-slate-450 italic py-4 text-center">No pending leave approvals detected.</p>
+            ) : (
+              <div className="space-y-3">
+                {leaves.filter(l => l.status === 'Pending').map((l, i) => (
+                  <div key={i} className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/30 rounded-xl flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-bold text-slate-900 dark:text-white">{l.name}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{l.type} · <span className="text-teal-650 dark:text-teal-300">{l.range}</span></p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleLeaveAction(l._id, 'Approved')} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1 rounded transition-all">Approve</button>
+                      <button onClick={() => handleLeaveAction(l._id, 'Rejected')} className="bg-red-500 hover:bg-red-650 text-white font-bold text-[9px] px-2.5 py-1 rounded transition-all">Reject</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* New Joiners list */}
+          <div className="glass-card border border-teal-500/20 rounded-2xl p-5">
+            <h3 className="text-xs font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest mb-4">New Joiners - This Month</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
+                <thead>
+                  <tr className="text-slate-500 dark:text-slate-400 text-left">
+                    <th className="pb-3 font-semibold">Employee</th>
+                    <th className="pb-3 font-semibold">Department</th>
+                    <th className="pb-3 font-semibold">Joining Date</th>
+                    <th className="pb-3 font-semibold">Status Badge</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200">
+                  {newJoiners.map((j, i) => (
+                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                      <td className="py-2.5 font-bold">{j.name}</td>
+                      <td className="py-2.5 text-teal-700 dark:text-teal-300 font-semibold">{j.dept}</td>
+                      <td className="py-2.5 font-mono">{j.date}</td>
+                      <td className="py-2.5">
+                        <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-650 dark:text-teal-400 border border-teal-500/20 text-[9px] uppercase font-black">{j.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </form>
-        </Modal>
-      )}
-    </div>
-  );
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// IT ADMINISTRATOR DASHBOARD
-// ═══════════════════════════════════════════════════════════════════════════════
-const ITAdminDashboard = () => {
-  const { user: itUser } = useContext(AuthContext);
-  const [tab, setTab] = useState('accounts');
-  const [users, setUsers] = useState([]);
-  const [tickets, setTickets] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [pwdModal, setPwdModal] = useState(null);
-  const [newPwd, setNewPwd] = useState('');
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [usersRes, ticketsRes, logsRes] = await Promise.all([
-        api.get('/users'),
-        api.get('/support'),
-        api.get('/audit'),
-      ]);
-      setUsers(usersRes.data);
-      setTickets(ticketsRes.data);
-      setAuditLogs(logsRes.data);
-    } catch { toast.error('Failed to load data'); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleUnlock = async (userId) => {
-    try {
-      await api.post(`/users/${userId}/unlock`);
-      toast.success('Account unlocked successfully!');
-      load();
-    } catch { toast.error('Failed to unlock account'); }
-  };
-
-  const handleResetPwd = async (e) => {
-    e.preventDefault();
-    if (newPwd.length < 8) { toast.error('Password must be at least 8 characters'); return; }
-    try {
-      await api.post(`/users/${pwdModal._id}/reset-password`, { newPassword: newPwd });
-      toast.success(`Password reset for ${pwdModal.username}`);
-      setPwdModal(null); setNewPwd('');
-      load();
-    } catch (err) { toast.error(err.response?.data?.error || 'Failed to reset password'); }
-  };
-
-  const handleTicketStatus = async (id, status) => {
-    try {
-      await api.put(`/support/${id}/status`, { status });
-      toast.success(`Ticket updated to ${status}`);
-      load();
-    } catch { toast.error('Failed to update ticket'); }
-  };
-
-  if (loading) return <LoadingSpinner />;
-
-  const locked = users.filter(u => u.isLocked);
-  const openTickets = tickets.filter(t => t.status === 'Open' || t.status === 'In Progress');
-  const filtered = users.filter(u => {
-    const q = search.toLowerCase();
-    return u.username?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.name?.toLowerCase().includes(q);
-  });
-
-  return (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-2xl p-6 shadow-md">
-        <h2 className="text-2xl font-bold">Welcome, IT Administrator 👋</h2>
-        <p className="opacity-80 text-sm mt-1">Logged in as: {itUser?.username || 'IT Admin'} · IT Security & Support Panel</p>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard label="Locked Accounts" value={locked.length} color="bg-red-500" icon="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        <StatCard label="Total Users" value={users.length} color="bg-blue-500" icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        <StatCard label="Open Tickets" value={openTickets.length} color="bg-yellow-500" icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        <StatCard label="Audit Events" value={auditLogs.length} color="bg-indigo-500" icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
-      </div>
-
-      <div className="flex gap-2 border-b border-gray-200">
-        {[['accounts', 'Account Security'], ['tickets', `Support Tickets${openTickets.length > 0 ? ` (${openTickets.length})` : ''}`], ['logs', 'Access Logs']].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 -mb-px transition-colors ${tab === k ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {/* Accounts Tab */}
-      {tab === 'accounts' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex justify-between items-center px-6 py-4 border-b gap-4">
-            <h4 className="font-bold text-gray-900">User Account Management</h4>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..." className="border border-gray-300 rounded-lg py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-56" />
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Username', 'Email', 'Role', 'Lock Status', 'Account', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0
-                  ? <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-400">No matching users found.</td></tr>
-                  : filtered.map(u => (
-                    <tr key={u._id} className={`hover:bg-gray-50 ${u.isLocked ? 'bg-red-50/30' : ''}`}>
-                      <td className="px-4 py-3 font-semibold text-gray-900">{u.username}</td>
-                      <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                      <td className="px-4 py-3"><span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">{u.role?.name}</span></td>
-                      <td className="px-4 py-3"><Badge value={u.isLocked ? '🔒 Locked' : '🔓 Unlocked'} map={{ '🔒 Locked': 'bg-red-100 text-red-800', '🔓 Unlocked': 'bg-green-100 text-green-800' }} /></td>
-                      <td className="px-4 py-3"><Badge value={u.isActive ? 'Active' : 'Inactive'} map={{ Active: 'bg-green-100 text-green-800', Inactive: 'bg-gray-100 text-gray-600' }} /></td>
-                      <td className="px-4 py-3 flex gap-1 flex-wrap">
-                        {u.isLocked && <Btn variant="success" className="py-1 px-2 text-xs" onClick={() => handleUnlock(u._id)}>Unlock</Btn>}
-                        <Btn variant="secondary" className="py-1 px-2 text-xs" onClick={() => { setPwdModal(u); setNewPwd(''); }}>Reset Pwd</Btn>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
           </div>
         </div>
-      )}
 
-      {/* Support Tickets Tab */}
-      {tab === 'tickets' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="px-6 py-4 border-b"><h4 className="font-bold text-gray-900">IT Support Tickets</h4></div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Employee', 'Category', 'Subject', 'Status', 'Submitted', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {tickets.length === 0
-                  ? <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-400">No support tickets.</td></tr>
-                  : tickets.map(t => (
-                    <tr key={t._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-gray-900">{t.employee?.firstName} {t.employee?.lastName}<div className="text-xs text-gray-400">{t.employee?.email}</div></td>
-                      <td className="px-4 py-3"><span className="text-xs font-bold bg-orange-50 text-orange-700 px-2 py-0.5 rounded">{t.category}</span></td>
-                      <td className="px-4 py-3 text-gray-700">{t.subject}</td>
-                      <td className="px-4 py-3"><Badge value={t.status} map={TICKET_STATUS_COLORS} /></td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">{new Date(t.createdAt).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        {t.status === 'Open' && <Btn variant="secondary" className="py-1 px-2 text-xs" onClick={() => handleTicketStatus(t._id, 'In Progress')}>Start</Btn>}
-                        {t.status === 'In Progress' && <Btn variant="success" className="py-1 px-2 text-xs" onClick={() => handleTicketStatus(t._id, 'Resolved')}>Resolve</Btn>}
-                        {t.status === 'Resolved' && <Btn variant="secondary" className="py-1 px-2 text-xs" onClick={() => handleTicketStatus(t._id, 'Closed')}>Close</Btn>}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+        {/* Right Side Alerts and Quick Links */}
+        <div className="space-y-6">
+          {/* Quick links */}
+          <div className="glass-card border border-teal-500/20 rounded-2xl p-5 space-y-4">
+            <h3 className="text-xs font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest">HR Shortcuts</h3>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => toast.info('Navigating to Add Employee workflow...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-teal-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-teal-650/10 border border-slate-200 dark:border-[#1F2647] hover:border-teal-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Onboard New Employee</span><ArrowRight className="h-4 w-4 text-teal-655 dark:text-teal-400" /></button>
+              <button onClick={() => toast.info('Navigating to Job Postings...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-teal-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-teal-650/10 border border-slate-200 dark:border-[#1F2647] hover:border-teal-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Post Job Vacancy</span><ArrowRight className="h-4 w-4 text-teal-655 dark:text-teal-400" /></button>
+              <button onClick={() => toast.info('Navigating to Payroll Registry...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-teal-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-teal-650/10 border border-slate-200 dark:border-[#1F2647] hover:border-teal-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Run Staff Payroll</span><ArrowRight className="h-4 w-4 text-teal-655 dark:text-teal-400" /></button>
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Audit Logs Tab */}
-      {tab === 'logs' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex items-center justify-between px-6 py-4 border-b">
-            <h4 className="font-bold text-gray-900">Organization Access Log</h4>
-            <Link to="/admin/audit" className="text-sm text-blue-600 hover:text-blue-800 font-medium">Full log →</Link>
-          </div>
-          <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
-            {auditLogs.length === 0
-              ? <p className="px-6 py-8 text-center text-gray-400">No audit events.</p>
-              : auditLogs.map(log => (
-                <div key={log._id} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50">
-                  <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded whitespace-nowrap">{log.action}</span>
-                  <span className="text-sm text-gray-700 flex-1">{log.userRef?.username || 'System'} {log.details ? `— ${log.details}` : ''}</span>
-                  <span className="text-xs text-gray-400 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</span>
+          {/* Attendance Alerts */}
+          <div className="glass-card border border-teal-500/20 rounded-2xl p-5">
+            <h3 className="text-xs font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest mb-4">Critical Attendance Alerts</h3>
+            <div className="space-y-3">
+              {attendanceAlerts.map((a, idx) => (
+                <div key={idx} className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{a.icon}</span>
+                    <div>
+                      <p className="font-bold text-slate-900 dark:text-white">{a.name}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Attendance drops below threshold</p>
+                    </div>
+                  </div>
+                  <span className="font-bold text-red-650 dark:text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">{a.rate} This Month</span>
                 </div>
               ))}
+            </div>
           </div>
         </div>
-      )}
-
-      {/* Reset Password Modal */}
-      {pwdModal && (
-        <Modal title={`Reset Password — ${pwdModal.username}`} onClose={() => setPwdModal(null)}>
-          <form onSubmit={handleResetPwd} className="space-y-4">
-            <p className="text-sm text-gray-500">This will force the user to change their password on next login.</p>
-            <Field label="New Password">
-              <Input required type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="Min 8 characters" />
-            </Field>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="primary" className="flex-1">Update Password</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setPwdModal(null)}>Cancel</Btn>
-            </div>
-          </form>
-        </Modal>
-      )}
+      </div>
     </div>
   );
 };
 
-// ─── Loading Spinner ───────────────────────────────────────────────────────────
-const LoadingSpinner = () => (
-  <div className="flex h-64 items-center justify-center">
-    <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-t-2 border-blue-600"></div>
-    <span className="ml-3 text-gray-600 font-medium">Loading workspace data...</span>
-  </div>
-);
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// DEPARTMENT MANAGER DASHBOARD
+// 4. DEPARTMENT MANAGER DASHBOARD (Orange)
 // ═══════════════════════════════════════════════════════════════════════════════
 const ManagerDashboard = () => {
-  const { user } = useContext(AuthContext);
-  const [tab, setTab] = useState('team');
-  const [managerEmp, setManagerEmp] = useState(null);
-  const [team, setTeam] = useState([]);
-  const [leaves, setLeaves] = useState([]);
-  const [corrections, setCorrections] = useState([]);
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { progressStore } = useContext(DemoProgressContext);
+  const [expandedTeam, setExpandedTeam] = useState(null); // 'arjun' | 'sneha' | null
+  
+  // Pending leaves in local state
+  const [leaves, setLeaves] = useState([
+    { id: 1, name: 'Riya Sharma', type: 'Sick Leave', dates: '2026-07-06 to 2026-07-08', status: 'Pending' },
+    { id: 2, name: 'Amit Verma', type: 'Earned Leave', dates: '2026-07-10 to 2026-07-12', status: 'Pending' }
+  ]);
 
-  // Review Form state
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewForm, setReviewForm] = useState({ employee: '', rating: 5, reviewText: '' });
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      // 1. Get Manager Employee Profile
-      let managerProfile = null;
-      if (user?.employeeRef) {
-        const profileRes = await api.get(`/employees/${user.employeeRef}`);
-        managerProfile = profileRes.data;
-        setManagerEmp(managerProfile);
-      }
-
-      // 2. Get Employees, Leaves, Corrections, Reviews
-      const [empRes, leavesRes, correctionsRes, reviewsRes] = await Promise.all([
-        api.get('/employees'),
-        api.get('/leaves'),
-        api.get('/enterprise/corrections').catch(() => ({ data: [] })),
-        api.get('/enterprise/reviews').catch(() => ({ data: [] }))
-      ]);
-
-      // Filter employees by Manager's department
-      let managerDeptTeam = [];
-      if (managerProfile) {
-        managerDeptTeam = empRes.data.filter(
-          emp => emp.department === managerProfile.department && emp._id !== managerProfile._id
-        );
-      } else {
-        managerDeptTeam = empRes.data;
-      }
-      setTeam(managerDeptTeam);
-
-      // Filter leaves, corrections, reviews related to this department team
-      setLeaves(leavesRes.data.filter(l => managerDeptTeam.some(t => t._id === l.employee?._id)));
-      setCorrections(correctionsRes.data.filter(c => managerDeptTeam.some(t => t._id === c.employee?._id)));
-      setReviews(reviewsRes.data.filter(r => managerDeptTeam.some(t => t._id === r.employee?._id)));
-    } catch {
-      toast.error('Failed to load Manager Dashboard');
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleLeaveAction = async (leaveId, status) => {
-    try {
-      await api.put(`/leaves/${leaveId}/status`, { status });
-      toast.success(`Leave request ${status.toLowerCase()}`);
-      load();
-    } catch {
-      toast.error('Failed to update leave status');
-    }
+  const handleLeaveAction = (id, status) => {
+    setLeaves(leaves.map(l => l.id === id ? { ...l, status } : l));
+    toast.success(`Request ${status} successfully`);
   };
 
-  const handleCorrectionAction = async (id, status) => {
-    try {
-      await api.put(`/enterprise/corrections/${id}`, { status });
-      toast.success(`Correction request ${status.toLowerCase()}`);
-      load();
-    } catch {
-      toast.error('Failed to update attendance correction');
+  // Sync data dynamically from progressStore
+  const arjunProgress = Math.round(
+    ((progressStore['riya_sharma'] || 65) + 
+     (progressStore['karan_patel'] || 80) + 
+     (progressStore['priya_singh'] || 40)) / 3
+  );
+
+  const snehaProgress = Math.round(
+    ((progressStore['amit_verma'] || 90) + 
+     (progressStore['neha_joshi'] || 55) + 
+     (progressStore['rohit_das'] || 30)) / 3
+  );
+
+  const teams = [
+    {
+      id: 'arjun',
+      name: 'Arjun Mehta',
+      designation: 'Tech Lead / Eng Lead',
+      project: 'Employee Portal v2',
+      deadline: '2026-08-15',
+      progress: arjunProgress,
+      size: 3,
+      avatar: 'AM',
+      employees: [
+        { name: 'Riya Sharma', task: 'API Integration', progress: progressStore['riya_sharma'] || 65, status: 'In Progress' },
+        { name: 'Karan Patel', task: 'UI Components', progress: progressStore['karan_patel'] || 80, status: 'Completed' },
+        { name: 'Priya Singh', task: 'Testing', progress: progressStore['priya_singh'] || 40, status: 'To Do' }
+      ]
+    },
+    {
+      id: 'sneha',
+      name: 'Sneha Gupta',
+      designation: 'Tech Lead / DB Lead',
+      project: 'Payroll Automation',
+      deadline: '2026-09-01',
+      progress: snehaProgress,
+      size: 3,
+      avatar: 'SG',
+      employees: [
+        { name: 'Amit Verma', task: 'DB Schema', progress: progressStore['amit_verma'] || 90, status: 'Review' },
+        { name: 'Neha Joshi', task: 'Backend APIs', progress: progressStore['neha_joshi'] || 55, status: 'In Progress' },
+        { name: 'Rohit Das', task: 'Frontend', progress: progressStore['rohit_das'] || 30, status: 'To Do' }
+      ]
     }
-  };
-
-  const handleCreateReview = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/enterprise/reviews', reviewForm);
-      toast.success('Performance review submitted!');
-      setShowReviewModal(false);
-      setReviewForm({ employee: '', rating: 5, reviewText: '' });
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to submit review');
-    }
-  };
-
-  if (loading) return <LoadingSpinner />;
-
-  const pendingLeaves = leaves.filter(l => l.status === 'Pending');
-  const pendingCorrections = corrections.filter(c => c.status === 'Pending');
-  const reviewsDue = team.filter(t => !reviews.some(r => r.employee?._id === t._id)).length;
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Title block */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl p-6 shadow-md">
-        <h2 className="text-2xl font-bold">Welcome Back, {managerEmp ? `${managerEmp.firstName} ${managerEmp.lastName}` : 'Manager'}</h2>
-        <p className="opacity-90 text-sm mt-1">Department: {managerEmp?.department || 'Not Assigned'} Manager Dashboard</p>
+    <div className="space-y-6 text-slate-800 dark:text-white">
+      {/* Top statistics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="My Department" value="Engineering" colorAccent="orange" icon={Briefcase} desc="Platform Unit" />
+        <StatCard label="Total Subordinates" value="8 Employees" colorAccent="orange" icon={Users} desc="2 Team Leads" />
+        <StatCard label="Unit Leave Rate" value="94.2%" colorAccent="orange" icon={Calendar} desc="Attendance Week Stats ↑ 1.4%" />
+        <StatCard label="Unit Projects" value="2 Running" colorAccent="orange" icon={Activity} desc="sprint v2.1" />
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        <StatCard label="Team Size" value={team.length} color="bg-blue-500" icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        <StatCard label="Present Today" value={team.filter(e => e.status === 'Active').length} color="bg-green-500" icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        <StatCard label="Pending Leaves" value={pendingLeaves.length} color="bg-yellow-500" icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        <StatCard label="Pending Corrections" value={pendingCorrections.length} color="bg-purple-500" icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        <StatCard label="Reviews Due" value={reviewsDue} color="bg-red-500" icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
-      </div>
+      {/* MY TEAMS section */}
+      <div className="glass-card border border-orange-500/20 rounded-2xl p-5">
+        <h3 className="text-xs font-black text-orange-700 dark:text-orange-400 uppercase tracking-widest mb-4">My Supervised Teams</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {teams.map((t, idx) => (
+            <div key={idx} className="p-5 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/40 rounded-2xl flex flex-col justify-between space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/30 rounded-xl flex items-center justify-center font-black text-sm uppercase">{t.avatar}</div>
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900 dark:text-white">{t.name}</h4>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">{t.designation}</p>
+                </div>
+              </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
-        {[
-          ['team', 'My Team'],
-          ['leaves', `Leave Requests${pendingLeaves.length > 0 ? ` (${pendingLeaves.length})` : ''}`],
-          ['corrections', `Attendance Corrections${pendingCorrections.length > 0 ? ` (${pendingCorrections.length})` : ''}`],
-          ['reviews', 'Performance Reviews']
-        ].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 -mb-px transition-colors ${tab === k ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {l}
-          </button>
-        ))}
-      </div>
+              <div className="space-y-2 border-t border-slate-200 dark:border-[#1F2647]/50 pt-3">
+                <div className="flex justify-between text-xs">
+                  <span className="font-bold text-slate-750 dark:text-slate-350">{t.project}</span>
+                  <span className="font-semibold text-orange-750 dark:text-orange-355 text-[10px] font-mono">End: {t.deadline}</span>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Overall Progress</span>
+                    <span className="text-slate-850 dark:text-white font-bold">{t.progress}%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-300" style={{ width: `${t.progress}%` }} />
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-500">Team Size: {t.size} Developers</p>
+              </div>
 
-      {/* Tab Contents */}
-      {tab === 'team' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="px-6 py-4 border-b"><h4 className="font-bold text-gray-900 text-lg">Department Employees</h4></div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Name', 'Employee ID', 'Designation', 'Joining Date', 'Status'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {team.length === 0 ? (
-                  <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-400">No team members onboarded under your department.</td></tr>
-                ) : (
-                  team.map(emp => (
-                    <tr key={emp._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-gray-900">{emp.firstName} {emp.lastName}<div className="text-xs text-gray-400">{emp.email}</div></td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{emp.employeeId}</td>
-                      <td className="px-4 py-3 text-gray-600">{emp.designation}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{new Date(emp.joiningDate).toLocaleDateString()}</td>
-                      <td className="px-4 py-3"><Badge value={emp.status} map={{ Active: 'bg-green-100 text-green-800', 'On Leave': 'bg-yellow-100 text-yellow-800', Terminated: 'bg-red-100 text-red-800' }} /></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              <div className="pt-2">
+                <button
+                  onClick={() => setExpandedTeam(expandedTeam === t.id ? null : t.id)}
+                  className="w-full text-center py-2 bg-orange-600/10 hover:bg-orange-600 text-orange-700 hover:text-white border border-orange-500/20 hover:border-transparent rounded-xl text-xs font-bold transition-all"
+                >
+                  {expandedTeam === t.id ? 'Hide Team Members' : 'View Team Roster'}
+                </button>
+              </div>
 
-      {tab === 'leaves' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="px-6 py-4 border-b"><h4 className="font-bold text-gray-900 text-lg">Team Leave Requests</h4></div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Employee', 'Type', 'Dates', 'Reason', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {leaves.length === 0 ? (
-                  <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-400">No leave requests found.</td></tr>
-                ) : (
-                  leaves.map(l => (
-                    <tr key={l._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-gray-900">{l.employee?.firstName} {l.employee?.lastName}</td>
-                      <td className="px-4 py-3"><span className="text-xs font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{l.type}</span></td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">{new Date(l.startDate).toLocaleDateString()} → {new Date(l.endDate).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={l.reason}>{l.reason}</td>
-                      <td className="px-4 py-3"><Badge value={l.status} map={LEAVE_STATUS_COLORS} /></td>
-                      <td className="px-4 py-3 space-x-1">
-                        {l.status === 'Pending' && (
-                          <>
-                            <Btn variant="success" className="py-1 px-2 text-xs" onClick={() => handleLeaveAction(l._id, 'Approved')}>Approve</Btn>
-                            <Btn variant="danger" className="py-1 px-2 text-xs" onClick={() => handleLeaveAction(l._id, 'Rejected')}>Reject</Btn>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {tab === 'corrections' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="px-6 py-4 border-b"><h4 className="font-bold text-gray-900 text-lg">Attendance Corrections</h4></div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Employee', 'Date', 'Times Requested', 'Reason', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {corrections.length === 0 ? (
-                  <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-400">No attendance corrections.</td></tr>
-                ) : (
-                  corrections.map(c => (
-                    <tr key={c._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-gray-900">{c.employee?.firstName} {c.employee?.lastName}</td>
-                      <td className="px-4 py-3 text-xs text-gray-600">{new Date(c.date).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 text-xs text-gray-500">{c.clockInTime || '—'} / {c.clockOutTime || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={c.reason}>{c.reason}</td>
-                      <td className="px-4 py-3"><Badge value={c.status} map={{ Pending: 'bg-yellow-100 text-yellow-800', Approved: 'bg-green-100 text-green-800', Rejected: 'bg-red-100 text-red-800' }} /></td>
-                      <td className="px-4 py-3 space-x-1">
-                        {c.status === 'Pending' && (
-                          <>
-                            <Btn variant="success" className="py-1 px-2 text-xs" onClick={() => handleCorrectionAction(c._id, 'Approved')}>Approve</Btn>
-                            <Btn variant="danger" className="py-1 px-2 text-xs" onClick={() => handleCorrectionAction(c._id, 'Rejected')}>Reject</Btn>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {tab === 'reviews' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200 p-6 space-y-6">
-          <div className="flex justify-between items-center">
-            <h4 className="font-bold text-gray-900 text-lg">Performance Reviews</h4>
-            <Btn variant="primary" onClick={() => setShowReviewModal(true)}>+ New Review</Btn>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Employee ID', 'Employee Name', 'Rating', 'Review Details', 'Submitted'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {reviews.length === 0 ? (
-                  <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-400">No review logs.</td></tr>
-                ) : (
-                  reviews.map(r => (
-                    <tr key={r._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.employee?.employeeId}</td>
-                      <td className="px-4 py-3 font-semibold text-gray-900">{r.employee?.firstName} {r.employee?.lastName}</td>
-                      <td className="px-4 py-3 font-bold text-yellow-600">{r.rating} / 5 ★</td>
-                      <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={r.reviewText}>{r.reviewText}</td>
-                      <td className="px-4 py-3 text-xs text-gray-400">{new Date(r.createdAt).toLocaleDateString()}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Review Modal */}
-      {showReviewModal && (
-        <Modal title="Create Performance Review" onClose={() => setShowReviewModal(false)}>
-          <form onSubmit={handleCreateReview} className="space-y-4">
-            <Field label="Select Employee">
-              <Select required value={reviewForm.employee} onChange={e => setReviewForm(f => ({ ...f, employee: e.target.value }))}>
-                <option value="">Choose employee...</option>
-                {team.map(emp => (
-                  <option key={emp._id} value={emp._id}>{emp.firstName} {emp.lastName} ({emp.employeeId})</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Rating (1-5 Star)">
-              <Select value={reviewForm.rating} onChange={e => setReviewForm(f => ({ ...f, rating: Number(e.target.value) }))}>
-                <option value="5">5 - Excellent</option>
-                <option value="4">4 - Good</option>
-                <option value="3">3 - Satisfactory</option>
-                <option value="2">2 - Needs Improvement</option>
-                <option value="1">1 - Poor</option>
-              </Select>
-            </Field>
-            <Field label="Review Details">
-              <textarea required rows={4} value={reviewForm.reviewText} onChange={e => setReviewForm(f => ({ ...f, reviewText: e.target.value }))} className="block w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Describe employee performance and goals..." />
-            </Field>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="success" className="flex-1">Submit Review</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setShowReviewModal(false)}>Cancel</Btn>
+              {/* Collapsed Team Roster */}
+              {expandedTeam === t.id && (
+                <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-[#1F2647] animate-fade-in font-mono text-[10px]">
+                  {t.employees.map((emp, i) => (
+                    <div key={i} className="p-2.5 bg-white dark:bg-[#0A0D1A]/50 border border-slate-200 dark:border-[#1F2647] rounded-xl space-y-2 shadow-sm">
+                      <div className="flex justify-between items-center font-sans">
+                        <span className="font-bold text-slate-900 dark:text-white">{emp.name}</span>
+                        <span className={`px-2 py-0.5 rounded-md text-[8px] uppercase tracking-wider font-bold ${emp.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : emp.status === 'In Progress' ? 'bg-blue-500/10 text-blue-750 dark:text-blue-400 border border-blue-500/20' : emp.status === 'Review' ? 'bg-yellow-500/10 text-yellow-800 dark:text-yellow-400 border border-yellow-500/20' : 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20'}`}>{emp.status}</span>
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-450 text-[9px] font-sans">&gt; Task: {emp.task}</p>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[8px] text-slate-400"><span>Progress</span><span>{emp.progress}%</span></div>
+                        <div className="w-full bg-slate-200 dark:bg-slate-950 h-1.5 rounded-full overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-orange-400 to-amber-400" style={{ width: `${emp.progress}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </form>
-        </Modal>
-      )}
+          ))}
+        </div>
+      </div>
+
+      {/* Project Assignment Flow Widget (Problem 4) */}
+      <div className="glass-card border border-orange-500/20 rounded-2xl p-5">
+        <h3 className="text-xs font-black text-orange-700 dark:text-orange-400 uppercase tracking-widest mb-4">Project Assignment Chain Diagram</h3>
+        <div className="flex flex-col items-center justify-center p-4 border border-slate-200 dark:border-orange-500/10 bg-slate-50/50 dark:bg-[#0E1325]/30 rounded-xl text-xs space-y-4">
+          <div className="px-5 py-2.5 bg-orange-600 border border-orange-500 rounded-xl font-black uppercase text-center text-white">Department Manager (You)</div>
+          
+          <div className="flex flex-col items-center">
+            <span className="text-orange-500 text-lg">↓</span>
+            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider font-mono">Assigns Project</span>
+          </div>
+
+          <div className="px-5 py-2.5 bg-white dark:bg-[#1F2647] border border-slate-200 dark:border-orange-500/20 rounded-xl font-bold uppercase text-center text-slate-800 dark:text-slate-100 shadow-sm">Team Lead: Arjun Mehta <span className="text-[10px] text-orange-655 dark:text-orange-355 ml-2 font-mono">Project: Employee Portal v2</span></div>
+
+          <div className="flex flex-col items-center">
+            <span className="text-orange-500 text-lg">↓</span>
+            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider font-mono">Assigns Subtasks</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full text-[10px] font-mono">
+            <div className="p-2.5 border border-slate-200 dark:border-[#1F2647] bg-white dark:bg-[#0A0D1A]/50 rounded-xl text-center shadow-sm">
+              <p className="font-bold text-slate-900 dark:text-white font-sans">Riya Sharma</p>
+              <p className="text-slate-500 dark:text-slate-400 text-[9px] mt-1 font-sans">API Integration</p>
+              <p className="text-orange-700 dark:text-orange-450 font-bold mt-1">{progressStore['riya_sharma'] || 65}% Completed</p>
+            </div>
+            <div className="p-2.5 border border-slate-200 dark:border-[#1F2647] bg-white dark:bg-[#0A0D1A]/50 rounded-xl text-center shadow-sm">
+              <p className="font-bold text-slate-900 dark:text-white font-sans">Karan Patel</p>
+              <p className="text-slate-500 dark:text-slate-400 text-[9px] mt-1 font-sans">UI Components</p>
+              <p className="text-orange-700 dark:text-orange-450 font-bold mt-1">{progressStore['karan_patel'] || 80}% Completed</p>
+            </div>
+            <div className="p-2.5 border border-slate-200 dark:border-[#1F2647] bg-white dark:bg-[#0A0D1A]/50 rounded-xl text-center shadow-sm">
+              <p className="font-bold text-slate-900 dark:text-white font-sans">Priya Singh</p>
+              <p className="text-slate-500 dark:text-slate-400 text-[9px] mt-1 font-sans">Testing</p>
+              <p className="text-orange-700 dark:text-orange-450 font-bold mt-1">{progressStore['priya_singh'] || 40}% Completed</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Project progress table */}
+        <div className="lg:col-span-2 glass-card border border-orange-500/20 rounded-2xl p-5">
+          <h3 className="text-xs font-black text-orange-700 dark:text-orange-400 uppercase tracking-widest mb-4">Project Progress Overview</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
+              <thead>
+                <tr className="text-slate-500 dark:text-slate-400 text-left">
+                  <th className="pb-3 font-semibold">Project Name</th>
+                  <th className="pb-3 font-semibold">Team Lead</th>
+                  <th className="pb-3 font-semibold">Tasks Completed</th>
+                  <th className="pb-3 font-semibold">Progress Bar</th>
+                  <th className="pb-3 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200">
+                {teams.map((t, i) => (
+                  <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                    <td className="py-3.5 font-bold text-slate-900 dark:text-white">{t.project}</td>
+                    <td className="py-3.5 text-orange-700 dark:text-orange-300 font-semibold">{t.name}</td>
+                    <td className="py-3.5 font-mono">3 / 3</td>
+                    <td className="py-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-8 font-bold font-mono">{t.progress}%</span>
+                        <div className="w-24 bg-slate-200 dark:bg-slate-900 border border-slate-350 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
+                          <div className="h-full bg-orange-500" style={{ width: `${t.progress}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3.5"><span className="px-2 py-0.5 rounded bg-orange-500/10 text-orange-700 dark:text-orange-450 border border-orange-500/20 text-[9px] uppercase font-black font-mono">In Progress</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Leave Approvals compact list */}
+        <div className="glass-card border border-orange-500/20 rounded-2xl p-5">
+          <h3 className="text-xs font-black text-orange-700 dark:text-orange-400 uppercase tracking-widest mb-4">Leave Approvals Pending</h3>
+          <div className="space-y-3">
+            {leaves.filter(l => l.status === 'Pending').length === 0 ? (
+              <p className="text-[10px] text-slate-400 italic py-4 text-center">No pending leave claims.</p>
+            ) : (
+              leaves.filter(l => l.status === 'Pending').map((l, i) => (
+                <div key={i} className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/30 rounded-xl flex flex-col gap-2.5 text-xs">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-slate-900 dark:text-white">{l.name}</p>
+                      <p className="text-[9px] text-slate-500 dark:text-slate-450 mt-0.5">{l.type}</p>
+                    </div>
+                    <span className="text-[9px] text-orange-700 dark:text-orange-355 font-semibold font-mono">{l.dates}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-2.5">
+                    <button onClick={() => handleLeaveAction(l.id, 'Approved')} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded-lg text-[9px] transition-all">Approve</button>
+                    <button onClick={() => handleLeaveAction(l.id, 'Rejected')} className="bg-red-500/10 hover:bg-red-500/30 border border-red-500/20 dark:bg-red-500/20 dark:hover:bg-red-500/40 dark:border-red-500/30 text-red-600 dark:text-red-400 font-bold py-1.5 rounded-lg text-[9px] transition-all">Reject</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TEAM LEAD DASHBOARD
+// 5. TEAM LEAD DASHBOARD (Cyan)
 // ═══════════════════════════════════════════════════════════════════════════════
 const TeamLeadDashboard = () => {
-  const { user } = useContext(AuthContext);
-  const [tab, setTab] = useState('tasks');
-  const [leadEmp, setLeadEmp] = useState(null);
-  const [team, setTeam] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { progressStore, setProgress } = useContext(DemoProgressContext);
+  const [showAssignModal, setShowAssignModal] = useState(false);
 
-  // New task form state
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [taskForm, setTaskForm] = useState({ title: '', description: '', assignedTo: '', dueDate: '' });
+  // Local Kanban tasks state
+  const [tasks, setTasks] = useState([
+    { id: 't1', title: 'API Integration', assignee: 'Riya Sharma', priority: 'High', deadline: '2026-07-15', status: 'In Progress' },
+    { id: 't2', title: 'UI Components', assignee: 'Karan Patel', priority: 'Medium', deadline: '2026-07-20', status: 'Completed' },
+    { id: 't3', title: 'Testing', assignee: 'Priya Singh', priority: 'Low', deadline: '2026-07-30', status: 'To Do' },
+    { id: 't4', title: 'Database schema configuration', assignee: 'Riya Sharma', priority: 'High', deadline: '2026-07-08', status: 'Review' },
+    { id: 't5', title: 'Production build script setup', assignee: 'Karan Patel', priority: 'Medium', deadline: '2026-07-10', status: 'Blocked' }
+  ]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      let leadProfile = null;
-      if (user?.employeeRef) {
-        const profileRes = await api.get(`/employees/${user.employeeRef}`);
-        leadProfile = profileRes.data;
-        setLeadEmp(leadProfile);
-      }
+  // Sync tasks dynamically with context progress values
+  const riyaProgress = progressStore['riya_sharma'] !== undefined ? progressStore['riya_sharma'] : 65;
+  const karanProgress = progressStore['karan_patel'] !== undefined ? progressStore['karan_patel'] : 80;
+  const priyaProgress = progressStore['priya_singh'] !== undefined ? progressStore['priya_singh'] : 40;
 
-      const [empRes, tasksRes] = await Promise.all([
-        api.get('/employees'),
-        api.get('/enterprise/tasks').catch(() => ({ data: [] }))
-      ]);
+  const teamProgressData = [
+    { name: 'Riya Sharma', percentage: riyaProgress },
+    { name: 'Karan Patel', percentage: karanProgress },
+    { name: 'Priya Singh', percentage: priyaProgress }
+  ];
 
-      let leadTeam = [];
-      if (leadProfile) {
-        leadTeam = empRes.data.filter(emp => emp.department === leadProfile.department && emp._id !== leadProfile._id);
-      } else {
-        leadTeam = empRes.data;
-      }
-      setTeam(leadTeam);
+  const overallProgress = Math.round((riyaProgress + karanProgress + priyaProgress) / 3);
 
-      // Filter tasks related to department employees
-      setTasks(tasksRes.data.filter(t => leadTeam.some(te => te._id === t.assignedTo?._id)));
-    } catch {
-      toast.error('Failed to load Team Lead Dashboard');
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+  // HTML5 Drag and Drop Handlers
+  const handleDragStart = (e, taskId) => {
+    e.dataTransfer.setData('text/plain', taskId);
+  };
 
-  useEffect(() => { load(); }, [load]);
-
-  const handleCreateTask = async (e) => {
+  const handleDragOver = (e) => {
     e.preventDefault();
-    try {
-      await api.post('/enterprise/tasks', taskForm);
-      toast.success('Task created and assigned!');
-      setShowTaskModal(false);
-      setTaskForm({ title: '', description: '', assignedTo: '', dueDate: '' });
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to assign task');
+  };
+
+  const handleDrop = (e, targetColumn) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('text/plain');
+    if (!taskId) return;
+
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: targetColumn } : t));
+    
+    // Automatically adjust employee progress in sync store if completed
+    const droppedTask = tasks.find(t => t.id === taskId);
+    if (droppedTask && targetColumn === 'Completed') {
+      const empMap = {
+        'Riya Sharma': 'riya_sharma',
+        'Karan Patel': 'karan_patel',
+        'Priya Singh': 'priya_singh'
+      };
+      const empId = empMap[droppedTask.assignee];
+      if (empId) {
+        setProgress(empId, droppedTask.id, 100);
+        toast.success(`Task marked as Completed! ${droppedTask.assignee}'s progress updated to 100%`);
+      }
+    } else {
+      toast.success(`Task moved to ${targetColumn}`);
     }
   };
 
-  const handleToggleTaskStatus = async (taskId, currentStatus) => {
-    const nextStatusMap = {
-      'Pending': 'In Progress',
-      'In Progress': 'Review',
-      'Review': 'Completed',
-      'Completed': 'Pending'
+  // Add Task Modal Submit Handler
+  const handleAssignTaskSubmit = (e) => {
+    e.preventDefault();
+    const title = e.target.taskName.value;
+    const assignee = e.target.assignTo.value;
+    const priority = e.target.priority.value;
+    const deadline = e.target.deadline.value;
+    
+    if (!title || !assignee) return;
+
+    const newTask = {
+      id: `tsk_${Math.random()}`,
+      title,
+      assignee,
+      priority,
+      deadline,
+      status: 'To Do'
     };
-    const status = nextStatusMap[currentStatus] || 'Pending';
-    try {
-      await api.put(`/enterprise/tasks/${taskId}`, { status });
-      toast.success(`Task status updated to ${status}`);
-      load();
-    } catch {
-      toast.error('Failed to update task status');
-    }
+
+    setTasks([...tasks, newTask]);
+    setShowAssignModal(false);
+    toast.success(`Assigned task "${title}" to ${assignee}!`);
   };
 
-  if (loading) return <LoadingSpinner />;
-
-  const activeTasks = tasks.filter(t => t.status === 'In Progress');
-  const overdueTasks = tasks.filter(t => t.status !== 'Completed' && t.dueDate && new Date(t.dueDate) < new Date());
+  const columns = ['To Do', 'In Progress', 'Review', 'Completed', 'Blocked'];
 
   return (
-    <div className="space-y-6">
-      {/* Title */}
-      <div className="bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-2xl p-6 shadow-md">
-        <h2 className="text-2xl font-bold">Welcome Back, {leadEmp ? `${leadEmp.firstName} ${leadEmp.lastName}` : 'Team Lead'}</h2>
-        <p className="opacity-90 text-sm mt-1">Department: {leadEmp?.department || 'Not Assigned'} Team Lead Dashboard</p>
-      </div>
-
-      {/* Widgets */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard label="Active Projects" value="2" color="bg-blue-500" icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        <StatCard label="Active Tasks" value={activeTasks.length} color="bg-yellow-500" icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        <StatCard label="Overdue Tasks" value={overdueTasks.length} color="bg-red-500" icon="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        <StatCard label="Team Utilization" value="88%" color="bg-green-500" icon="M13 10V3L4 14h7v7l9-11h-7z" />
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
-        {[
-          ['tasks', 'Sprint Planning & Tasks'],
-          ['team', 'Team Utilization']
-        ].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 -mb-px transition-colors ${tab === k ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {/* Tasks Tab */}
-      {tab === 'tasks' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="flex justify-between items-center px-6 py-4 border-b">
-            <h4 className="font-bold text-gray-900 text-lg">Active Tasks</h4>
-            <Btn variant="primary" onClick={() => setShowTaskModal(true)}>+ Assign New Task</Btn>
+    <div className="space-y-6 text-slate-800 dark:text-white">
+      {/* prominent project card at top */}
+      <div className="glass-card border border-cyan-500/25 rounded-3xl p-6 bg-gradient-to-r from-cyan-500/5 via-transparent to-transparent">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+          <div className="space-y-2">
+            <span className="px-2.5 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 text-[9px] uppercase tracking-widest font-black">Project Leader Command</span>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white">Employee Portal v2</h2>
+            <p className="text-slate-500 dark:text-slate-400 text-xs">Sprint milestone deadlines: <span className="text-cyan-650 dark:text-cyan-300 font-bold">2026-08-15</span> · Status: <span className="text-cyan-650 dark:text-cyan-300 uppercase tracking-widest font-bold font-mono">In Progress</span></p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Task Title', 'Description', 'Assigned To', 'Due Date', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {tasks.length === 0 ? (
-                  <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-400">No active tasks in your sprint.</td></tr>
-                ) : (
-                  tasks.map(t => (
-                    <tr key={t._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-gray-900">{t.title}</td>
-                      <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={t.description}>{t.description || '—'}</td>
-                      <td className="px-4 py-3 font-semibold text-gray-900">{t.assignedTo?.firstName} {t.assignedTo?.lastName}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'No limit'}</td>
-                      <td className="px-4 py-3">
-                        <Badge value={t.status} map={{ Pending: 'bg-yellow-100 text-yellow-800', 'In Progress': 'bg-blue-100 text-blue-800', Review: 'bg-orange-100 text-orange-800', Completed: 'bg-green-100 text-green-800' }} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <Btn variant="secondary" className="py-1 px-2 text-xs font-semibold" onClick={() => handleToggleTaskStatus(t._id, t.status)}>
-                          Advance Status
-                        </Btn>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Team tab */}
-      {tab === 'team' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="px-6 py-4 border-b"><h4 className="font-bold text-gray-900 text-lg">Team Members Workload</h4></div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Name', 'Employee ID', 'Designation', 'Total Tasks Assigned'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {team.map(emp => (
-                  <tr key={emp._id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-semibold text-gray-900">{emp.firstName} {emp.lastName}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{emp.employeeId}</td>
-                    <td className="px-4 py-3 text-gray-600">{emp.designation}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-gray-800">
-                      {tasks.filter(t => t.assignedTo?._id === emp._id).length} tasks
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Task Modal */}
-      {showTaskModal && (
-        <Modal title="Create Sprint Task" onClose={() => setShowTaskModal(false)}>
-          <form onSubmit={handleCreateTask} className="space-y-4">
-            <Field label="Task Title"><Input required value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Develop login frontend" /></Field>
-            <Field label="Assign To Team Member">
-              <Select required value={taskForm.assignedTo} onChange={e => setTaskForm(f => ({ ...f, assignedTo: e.target.value }))}>
-                <option value="">Select team member...</option>
-                {team.map(emp => (
-                  <option key={emp._id} value={emp._id}>{emp.firstName} {emp.lastName} ({emp.employeeId})</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Due Date"><Input required type="date" value={taskForm.dueDate} onChange={e => setTaskForm(f => ({ ...f, dueDate: e.target.value }))} /></Field>
-            <Field label="Description details">
-              <textarea rows={3} value={taskForm.description} onChange={e => setTaskForm(f => ({ ...f, description: e.target.value }))} className="block w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Provide step details..." />
-            </Field>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="success" className="flex-1">Assign Task</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setShowTaskModal(false)}>Cancel</Btn>
+          <div className="flex items-center gap-4">
+            {/* Custom Pie Chart Progress Circle */}
+            <div className="relative w-20 h-20">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { value: overallProgress },
+                      { value: 100 - overallProgress }
+                    ]}
+                    innerRadius={26}
+                    outerRadius={34}
+                    startAngle={90}
+                    endAngle={-270}
+                    dataKey="value"
+                  >
+                    <Cell fill="#06B6D4" />
+                    <Cell fill="#cbd5e1" className="dark:fill-slate-800" />
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex items-center justify-center text-xs font-black text-slate-900 dark:text-white">{overallProgress}%</div>
             </div>
-          </form>
-        </Modal>
-      )}
+            <div className="text-xs">
+              <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">Auto-Calculated Status</p>
+              <p className="text-sm font-black mt-0.5 text-slate-850 dark:text-white">Project Complete</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid of employee cards */}
+      <div className="glass-card border border-cyan-500/20 rounded-2xl p-5">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xs font-black text-cyan-700 dark:text-cyan-400 uppercase tracking-widest">My Development Team</h3>
+          <button onClick={() => setShowAssignModal(true)} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 transition-all"><Plus className="h-3.5 w-3.5" /> Assign Task</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {teamProgressData.map((t, idx) => (
+            <div key={idx} className="p-4 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/45 rounded-xl space-y-3 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/35 rounded-lg flex items-center justify-center font-bold text-xs">{t.name.split(' ').map(n=>n[0]).join('')}</div>
+                <div>
+                  <h4 className="font-bold text-xs text-slate-900 dark:text-white">{t.name}</h4>
+                  <p className="text-[9px] text-slate-500 dark:text-slate-400">Software Developer</p>
+                </div>
+              </div>
+              
+              {/* Task Detail */}
+              <div className="text-[10px] space-y-1.5 border-t border-slate-200 dark:border-[#1F2647] pt-2">
+                <p className="text-slate-500 dark:text-slate-400 flex justify-between"><span>Current Task:</span><span className="text-slate-850 dark:text-white font-semibold">{tasks.find(ts=>ts.assignee === t.name)?.title || 'No Task Assigned'}</span></p>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[8px] text-slate-450 dark:text-slate-500"><span>Progress</span><span>{t.percentage}%</span></div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-900 h-1.5 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-cyan-500 to-indigo-500" style={{ width: `${t.percentage}%` }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Kanban Board Container */}
+      <div className="glass-card border border-cyan-500/20 rounded-2xl p-5 overflow-hidden">
+        <h3 className="text-xs font-black text-cyan-700 dark:text-cyan-400 uppercase tracking-widest mb-4">Sprint Kanban Board</h3>
+        <div className="flex flex-col md:flex-row gap-4 overflow-x-auto pb-2">
+          {columns.map((col, idx) => {
+            const colTasks = tasks.filter(t => t.status === col);
+            return (
+              <div
+                key={idx}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, col)}
+                className="flex-1 min-w-[200px] bg-slate-50/50 dark:bg-[#0E1325]/45 border border-slate-200 dark:border-[#1F2647] rounded-xl p-3 flex flex-col space-y-3 min-h-[300px]"
+              >
+                <div className="flex justify-between items-center border-b border-slate-200 dark:border-[#1F2647] pb-2">
+                  <span className="text-[10px] font-black text-slate-600 dark:text-slate-350 uppercase tracking-wider">{col}</span>
+                  <span className="px-2 py-0.5 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 text-[8px] font-black rounded-md">{colTasks.length}</span>
+                </div>
+
+                <div className="flex-1 flex flex-col gap-2.5 overflow-y-auto">
+                  {colTasks.map((t) => (
+                    <div
+                      key={t.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, t.id)}
+                      className="p-3 bg-white dark:bg-[#151A30] border border-slate-200 dark:border-cyan-500/10 hover:border-cyan-500/30 rounded-lg cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all space-y-2 text-[10px]"
+                    >
+                      <h5 className="font-bold text-slate-850 dark:text-white text-[11px] leading-tight font-sans">{t.title}</h5>
+                      <div className="flex justify-between items-center text-[9px] text-slate-500 dark:text-slate-400">
+                        <span>Assignee: <span className="text-cyan-700 dark:text-cyan-300 font-semibold">{t.assignee.split(' ')[0]}</span></span>
+                        <span className={`px-1.5 py-0.2 rounded font-black text-[8px] tracking-widest uppercase ${t.priority === 'High' ? 'bg-red-500/10 text-red-600 dark:text-red-400' : t.priority === 'Medium' ? 'bg-yellow-500/10 text-yellow-800 dark:text-yellow-400' : 'bg-green-500/10 text-green-700 dark:text-green-400'}`}>{t.priority}</span>
+                      </div>
+                      <p className="text-[8px] text-slate-400 dark:text-slate-500 font-mono">Date: {t.deadline}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Team Progress Summary Chart */}
+      <div className="glass-card border border-cyan-500/20 rounded-2xl p-5">
+        <h3 className="text-xs font-black text-cyan-700 dark:text-cyan-400 uppercase tracking-widest mb-4">Developer Task Progress Metrics</h3>
+        <div className="h-48 pt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={teamProgressData}>
+              <XAxis dataKey="name" stroke="#64748b" fontSize={10} />
+              <YAxis stroke="#64748b" fontSize={10} domain={[0, 100]} />
+              <Tooltip contentStyle={{ backgroundColor: '#151A30', borderColor: '#06B6D4' }} />
+              <Bar dataKey="percentage" radius={[4, 4, 0, 0]}>
+                {teamProgressData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={index === 0 ? '#06B6D4' : index === 1 ? '#3B82F6' : '#6366F1'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Assign Task Modal */}
+      <AnimatePresence>
+        {showAssignModal && (
+          <LocalModal title="Assign Task" onClose={() => setShowAssignModal(false)}>
+            <form onSubmit={handleAssignTaskSubmit} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="block text-slate-500 dark:text-slate-400 font-semibold">Task Name</label>
+                <input name="taskName" required type="text" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500" placeholder="e.g. Audit Secure Cookies rotation" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-slate-500 dark:text-slate-400 font-semibold">Assign To</label>
+                  <select name="assignTo" className="w-full bg-slate-50 dark:bg-[#0E1325] border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500">
+                    <option>Riya Sharma</option>
+                    <option>Karan Patel</option>
+                    <option>Priya Singh</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-slate-500 dark:text-slate-400 font-semibold">Priority Level</label>
+                  <select name="priority" className="w-full bg-slate-50 dark:bg-[#0E1325] border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500">
+                    <option>High</option>
+                    <option>Medium</option>
+                    <option>Low</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-slate-500 dark:text-slate-400 font-semibold">Task Deadline</label>
+                <input name="deadline" required type="date" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500" />
+              </div>
+              <div className="pt-2">
+                <button type="submit" className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2.5 rounded-xl transition-all">Submit Task Assignment</button>
+              </div>
+            </form>
+          </LocalModal>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FINANCE EXECUTIVE DASHBOARD
+// 6. FINANCE EXECUTIVE DASHBOARD (Gold/Yellow)
 // ═══════════════════════════════════════════════════════════════════════════════
 const FinanceDashboard = () => {
-  const { user: financeUser } = useContext(AuthContext);
-  const [tab, setTab] = useState('generate');
-  const [employees, setEmployees] = useState([]);
-  const [payrolls, setPayrolls] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const salaryTable = [
+    { id: 'EMP_101', name: 'Arjun Mehta', dept: 'Engineering', basic: 75000, hra: 30000, bonus: 15000, deduct: 8500, net: 111500 },
+    { id: 'EMP_102', name: 'Sneha Gupta', dept: 'Engineering', basic: 72000, hra: 28800, bonus: 12000, deduct: 8200, net: 104600 },
+    { id: 'EMP_103', name: 'Riya Sharma', dept: 'HR & Recruiting', basic: 55000, hra: 22000, bonus: 8000, deduct: 5500, net: 79500 },
+    { id: 'EMP_104', name: 'Marcus Vane', dept: 'IT Operations', basic: 68000, hra: 27200, bonus: 10000, deduct: 7500, net: 97700 },
+    { id: 'EMP_105', name: 'Elena Rostova', dept: 'Compliance', basic: 60000, hra: 24000, bonus: 9000, deduct: 6200, net: 86800 },
+    { id: 'EMP_106', name: 'Karan Patel', dept: 'Engineering', basic: 45050, hra: 18020, bonus: 5000, deduct: 4800, net: 63270 },
+    { id: 'EMP_107', name: 'Priya Singh', dept: 'Engineering', basic: 45050, hra: 18020, bonus: 5000, deduct: 4800, net: 63270 },
+    { id: 'EMP_108', name: 'Amit Verma', dept: 'Operations', basic: 48000, hra: 19200, bonus: 6000, deduct: 5000, net: 68200 },
+    { id: 'EMP_109', name: 'Neha Joshi', dept: 'Operations', basic: 48000, hra: 19200, bonus: 6000, deduct: 5000, net: 68200 },
+    { id: 'EMP_110', name: 'Rohit Das', dept: 'Operations', basic: 46000, hra: 18400, bonus: 5000, deduct: 4900, net: 64500 }
+  ];
 
-  // Modal payroll generation states
-  const [showPayrollModal, setShowPayrollModal] = useState(null);
-  const [payrollForm, setPayrollForm] = useState({ baseSalary: 55000, allowances: 0, deductions: 0, month: 'January', year: 2026 });
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [empRes, payrollsRes] = await Promise.all([
-        api.get('/employees'),
-        api.get('/enterprise/payrolls').catch(() => ({ data: [] }))
-      ]);
-      setEmployees(empRes.data.filter(e => e.status !== 'Archived'));
-      setPayrolls(payrollsRes.data);
-    } catch {
-      toast.error('Failed to load Finance Dashboard');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleGeneratePayroll = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/enterprise/payrolls', {
-        employee: showPayrollModal._id,
-        ...payrollForm
-      });
-      toast.success('Payroll generated successfully!');
-      setShowPayrollModal(null);
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to generate payroll');
-    }
-  };
-
-  const handleUpdatePayrollStatus = async (id, status) => {
-    try {
-      await api.put(`/enterprise/payrolls/${id}`, { status });
-      toast.success(`Payroll successfully ${status.toLowerCase()}`);
-      load();
-    } catch {
-      toast.error('Failed to update payroll status');
-    }
-  };
-
-  if (loading) return <LoadingSpinner />;
-
-  // Computed details
-  const totalSalariesExpense = payrolls.filter(p => p.status === 'Processed').reduce((acc, curr) => acc + curr.netSalary, 0);
-  const overtimeCost = payrolls.reduce((acc, curr) => acc + (curr.allowances || 0), 0);
-  const processedPayrolls = payrolls.filter(p => p.status === 'Processed').length;
+  const taxAllocation = [
+    { name: 'Engineering', amount: 480000 },
+    { name: 'Operations', amount: 280000 },
+    { name: 'IT Support', amount: 150000 },
+    { name: 'Finance Unit', amount: 120000 },
+    { name: 'Human Res.', amount: 98000 }
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Title */}
-      <div className="bg-gradient-to-r from-indigo-700 to-purple-700 text-white rounded-2xl p-6 shadow-md">
-        <h2 className="text-2xl font-bold">Welcome, Finance Executive 👋</h2>
-        <p className="opacity-90 text-sm mt-1">Logged in as: {financeUser?.username || 'Finance Executive'} · Payroll & Compensation Management Panel</p>
+    <div className="space-y-6 text-slate-800 dark:text-white">
+      {/* Top statistics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Monthly Gross Payout" value="₹18,43,500" colorAccent="yellow" icon={DollarSign} desc="Basic + HRA + Allowances" />
+        <StatCard label="Total Deductions" value="₹2,10,400" colorAccent="yellow" icon={ShieldAlert} desc="Provident Fund / TDS" />
+        <StatCard label="Net Disbursed" value="₹16,33,100" colorAccent="yellow" icon={CheckCircle} desc="Transferred to Staff Accounts" />
+        <StatCard label="Processing Status" value="198 / 247 Paid" colorAccent="yellow" icon={Clock} desc="49 In Final Verification" />
       </div>
 
-      {/* Widgets */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard label="Employees Configured" value={employees.length} color="bg-blue-500" icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        <StatCard label="Payrolls Processed" value={processedPayrolls} color="bg-green-500" icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        <StatCard label="Total Expense Paid" value={`$${totalSalariesExpense.toLocaleString()}`} color="bg-emerald-600" icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        <StatCard label="Overtime Allowances" value={`$${overtimeCost.toLocaleString()}`} color="bg-yellow-500" icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      {/* Pipeline step tracker */}
+      <div className="glass-card border border-yellow-500/20 rounded-2xl p-5">
+        <h3 className="text-xs font-black text-yellow-750 dark:text-yellow-400 uppercase tracking-widest mb-4">Payroll Pipeline Execution</h3>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-bold font-mono">
+          <div className="flex items-center gap-2 p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-600 dark:text-emerald-400">
+            <CheckCircle className="h-4 w-4" />
+            <span>Attendance Locked</span>
+          </div>
+          <div className="h-0.5 w-8 bg-emerald-550/40 hidden md:block" />
+          
+          <div className="flex items-center gap-2 p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-600 dark:text-emerald-400">
+            <CheckCircle className="h-4 w-4" />
+            <span>Calculation Done</span>
+          </div>
+          <div className="h-0.5 w-8 bg-emerald-550/40 hidden md:block" />
+
+          <div className="flex items-center gap-2 p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-600 dark:text-emerald-400">
+            <CheckCircle className="h-4 w-4" />
+            <span>Manager Review</span>
+          </div>
+          <div className="h-0.5 w-8 bg-yellow-500/40 hidden md:block" />
+
+          <div className="flex items-center gap-2 p-2 bg-yellow-500/20 border border-yellow-500/40 rounded-xl text-yellow-750 dark:text-yellow-400 animate-pulse">
+            <Clock className="h-4 w-4 animate-spin" />
+            <span>Finance Approval</span>
+          </div>
+          <div className="h-0.5 w-8 bg-slate-200 dark:bg-slate-700 hidden md:block" />
+
+          <div className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-[#1A203E] border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400">
+            <Lock className="h-4 w-4" />
+            <span>Payslips Generated</span>
+          </div>
+        </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
-        {[
-          ['generate', 'Onboard / Generate Payroll'],
-          ['records', 'Salary Records & Payslips']
-        ].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 -mb-px transition-colors ${tab === k ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {/* Generate Tab */}
-      {tab === 'generate' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="px-6 py-4 border-b"><h4 className="font-bold text-gray-900 text-lg">Employee Directory</h4></div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Salary table */}
+        <div className="lg:col-span-2 glass-card border border-yellow-500/20 rounded-2xl p-5">
+          <h3 className="text-xs font-black text-yellow-750 dark:text-yellow-400 uppercase tracking-widest mb-4">Corporate Salary Register</h3>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Employee ID', 'Name', 'Department', 'Designation', 'Joining Date', 'Action'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
+            <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
+              <thead>
+                <tr className="text-slate-500 dark:text-slate-400 text-left font-mono">
+                  <th className="pb-3 font-semibold">Staff ID</th>
+                  <th className="pb-3 font-semibold">Employee</th>
+                  <th className="pb-3 font-semibold">Department</th>
+                  <th className="pb-3 font-semibold">Basic (₹)</th>
+                  <th className="pb-3 font-semibold">HRA (₹)</th>
+                  <th className="pb-3 font-semibold">Deductions (₹)</th>
+                  <th className="pb-3 font-semibold">Net Salary (₹)</th>
+                </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {employees.map(emp => (
-                  <tr key={emp._id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{emp.employeeId}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">{emp.firstName} {emp.lastName}</td>
-                    <td className="px-4 py-3 text-gray-600">{emp.department}</td>
-                    <td className="px-4 py-3 text-gray-600">{emp.designation}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{new Date(emp.joiningDate).toLocaleDateString()}</td>
-                    <td className="px-4 py-3">
-                      <Btn variant="primary" className="py-1 px-2 text-xs font-semibold" onClick={() => {
-                        setShowPayrollModal(emp);
-                        setPayrollForm({ baseSalary: 55000, allowances: 0, deductions: 0, month: 'January', year: 2026 });
-                      }}>
-                        Run Payroll
-                      </Btn>
+              <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200 font-mono">
+                {salaryTable.map((s, i) => (
+                  <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                    <td className="py-2.5 text-yellow-800 dark:text-yellow-400 font-bold">{s.id}</td>
+                    <td className="py-2.5 text-slate-900 dark:text-white font-bold">{s.name}</td>
+                    <td className="py-2.5 text-slate-500 dark:text-slate-450">{s.dept}</td>
+                    <td className="py-2.5">{s.basic.toLocaleString()}</td>
+                    <td className="py-2.5">{s.hra.toLocaleString()}</td>
+                    <td className="py-2.5 text-red-650 dark:text-red-400">-{s.deduct.toLocaleString()}</td>
+                    <td className="py-2.5 text-emerald-600 dark:text-emerald-400 font-bold">{s.net.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Tax allocation chart */}
+        <div className="glass-card border border-yellow-500/20 rounded-2xl p-5">
+          <h3 className="text-xs font-black text-yellow-750 dark:text-yellow-400 uppercase tracking-widest mb-4">Departmental Tax Allocations</h3>
+          <div className="h-64 pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={taxAllocation} layout="vertical">
+                <XAxis type="number" stroke="#64748b" fontSize={9} />
+                <YAxis type="category" dataKey="name" stroke="#64748b" fontSize={9} width={80} />
+                <Tooltip contentStyle={{ backgroundColor: '#151A30', borderColor: '#EAB308' }} />
+                <Bar dataKey="amount" fill="#EAB308" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 7. IT ADMINISTRATOR DASHBOARD (Red)
+// ═══════════════════════════════════════════════════════════════════════════════
+const ITAdminDashboard = () => {
+  const [tickets, setTickets] = useState([
+    { id: 'TCK_881', employee: 'Sarah Jenkins', cat: 'Hardware', priority: 'High', status: 'Open', age: '2 hours' },
+    { id: 'TCK_882', employee: 'Arjun Mehta', cat: 'Software', priority: 'Medium', status: 'In Progress', age: '4 hours' },
+    { id: 'TCK_883', employee: 'Sneha Gupta', cat: 'Access', priority: 'High', status: 'Open', age: '1 day' },
+    { id: 'TCK_884', employee: 'Marcus Vane', cat: 'Network', priority: 'Low', status: 'Resolved', age: '2 days' },
+    { id: 'TCK_885', employee: 'Karan Patel', cat: 'Software', priority: 'High', status: 'Open', age: '5 mins' }
+  ]);
+
+  const [resets] = useState([
+    { name: 'Riya Sharma', time: '12:00:15', status: 'Pending' },
+    { name: 'Karan Patel', time: '11:45:00', status: 'Completed' },
+    { name: 'Sneha Gupta', time: '10:12:30', status: 'Completed' },
+    { name: 'Elena Rostova', time: '09:00:00', status: 'Completed' }
+  ]);
+
+  const handleActionClick = (action) => {
+    toast.info(`Triggered IT Admin action: ${action}`);
+  };
+
+  const handleCloseTicket = (id) => {
+    setTickets(tickets.map(t => t.id === id ? { ...t, status: 'Closed' } : t));
+    toast.success(`Ticket ${id} closed successfully!`);
+  };
+
+  return (
+    <div className="space-y-6 text-slate-800 dark:text-white">
+      {/* Grid KPI Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total IT Assets" value="156 Assets" colorAccent="red" icon={Cpu} desc="Assigned: 134 | Unassigned: 22" />
+        <StatCard label="Pending resets" value="1 Request" colorAccent="red" icon={Lock} desc="Requires manual override keys" />
+        <StatCard label="Hardware Under Repair" value="8 Systems" colorAccent="red" icon={Settings} desc="Estimated checkout: 3 days" />
+        <StatCard label="System Vitals" value="CPU: 4% | 4.6G" colorAccent="red" icon={Activity} desc="Ping: 16ms · Stable" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Tickets queue */}
+        <div className="lg:col-span-2 glass-card border border-red-500/20 rounded-2xl p-5">
+          <h3 className="text-xs font-black text-red-700 dark:text-red-400 uppercase tracking-widest mb-4">Support Ticket Queue</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
+              <thead>
+                <tr className="text-slate-500 dark:text-slate-400 text-left">
+                  <th className="pb-3 font-semibold">Ticket ID</th>
+                  <th className="pb-3 font-semibold">Employee</th>
+                  <th className="pb-3 font-semibold">Category</th>
+                  <th className="pb-3 font-semibold">Priority</th>
+                  <th className="pb-3 font-semibold">Status</th>
+                  <th className="pb-3 font-semibold">Age</th>
+                  <th className="pb-3 font-semibold">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200">
+                {tickets.map((t, i) => (
+                  <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                    <td className="py-2.5 font-bold text-red-655 dark:text-red-400">{t.id}</td>
+                    <td className="py-2.5 text-slate-900 dark:text-white font-bold">{t.employee}</td>
+                    <td className="py-2.5 font-semibold text-slate-500 dark:text-slate-400">{t.cat}</td>
+                    <td className="py-2.5">
+                      <span className={`px-1.5 py-0.2 rounded font-black text-[8px] tracking-widest uppercase ${t.priority === 'High' ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-yellow-500/10 text-yellow-800 dark:text-yellow-400'}`}>{t.priority}</span>
+                    </td>
+                    <td className="py-2.5"><span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#1A203E] border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 text-[9px] uppercase font-black font-mono">{t.status}</span></td>
+                    <td className="py-2.5 text-slate-500 dark:text-slate-450">{t.age}</td>
+                    <td className="py-2.5">
+                      {t.status !== 'Closed' && t.status !== 'Resolved' ? (
+                        <button onClick={() => handleCloseTicket(t.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold text-[8px] px-2 py-0.5 rounded transition-all">Close</button>
+                      ) : <span className="text-slate-450 dark:text-slate-550 italic">Closed</span>}
                     </td>
                   </tr>
                 ))}
@@ -2132,103 +1308,223 @@ const FinanceDashboard = () => {
             </table>
           </div>
         </div>
-      )}
 
-      {/* Records Tab */}
-      {tab === 'records' && (
-        <div className="bg-white shadow rounded-xl border border-gray-200">
-          <div className="px-6 py-4 border-b"><h4 className="font-bold text-gray-900 text-lg">Salary Compensation Ledger</h4></div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>{['Employee ID', 'Name', 'Period', 'Base Salary', 'Allowances', 'Deductions', 'Net Salary', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {payrolls.length === 0 ? (
-                  <tr><td colSpan="9" className="px-6 py-8 text-center text-gray-400">No salary records generated.</td></tr>
-                ) : (
-                  payrolls.map(p => (
-                    <tr key={p._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.employee?.employeeId}</td>
-                      <td className="px-4 py-3 font-semibold text-gray-900">{p.employee?.firstName} {p.employee?.lastName}</td>
-                      <td className="px-4 py-3 text-xs text-gray-600">{p.month} {p.year}</td>
-                      <td className="px-4 py-3 text-gray-600">${p.baseSalary.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-green-600">+${(p.allowances || 0).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-red-600">-${(p.deductions || 0).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-sm font-bold text-gray-900">${p.netSalary.toLocaleString()}</td>
-                      <td className="px-4 py-3">
-                        <Badge value={p.status} map={{ Pending: 'bg-yellow-100 text-yellow-800', Approved: 'bg-blue-100 text-blue-800', Processed: 'bg-green-100 text-green-800' }} />
-                      </td>
-                      <td className="px-4 py-3 space-x-1 whitespace-nowrap">
-                        {p.status === 'Pending' && (
-                          <Btn variant="primary" className="py-1 px-2 text-xs font-semibold" onClick={() => handleUpdatePayrollStatus(p._id, 'Approved')}>Approve</Btn>
-                        )}
-                        {p.status === 'Approved' && (
-                          <Btn variant="success" className="py-1 px-2 text-xs font-semibold" onClick={() => handleUpdatePayrollStatus(p._id, 'Processed')}>Process</Btn>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+        {/* Right side actions and resets */}
+        <div className="space-y-6">
+          {/* Quick Actions Panel */}
+          <div className="glass-card border border-red-500/20 rounded-2xl p-5 space-y-4">
+            <h3 className="text-xs font-black text-red-700 dark:text-red-400 uppercase tracking-widest">IT Operations</h3>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => handleActionClick('Reset password flow initiated')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-red-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-red-650/10 border border-slate-200 dark:border-[#1F2647] hover:border-red-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Reset Staff Password</span><ArrowRight className="h-4 w-4 text-red-655 dark:text-red-400" /></button>
+              <button onClick={() => handleActionClick('Onboarding new Asset...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-red-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-red-650/10 border border-slate-200 dark:border-[#1F2647] hover:border-red-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Add New Asset Entry</span><ArrowRight className="h-4 w-4 text-red-655 dark:text-red-400" /></button>
+              <button onClick={() => handleActionClick('Viewing system security logs...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-red-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-red-655/10 border border-slate-200 dark:border-[#1F2647] hover:border-red-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Close Support Ticket</span><ArrowRight className="h-4 w-4 text-red-655 dark:text-red-400" /></button>
+            </div>
+          </div>
+
+          {/* Password resets timeline */}
+          <div className="glass-card border border-red-500/20 rounded-2xl p-5">
+            <h3 className="text-xs font-black text-red-700 dark:text-red-400 uppercase tracking-widest mb-4">Password Resets Timeline</h3>
+            <div className="space-y-3 font-mono text-[10px] text-slate-600 dark:text-slate-350">
+              {resets.map((r, i) => (
+                <div key={i} className="p-2 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/10 rounded-xl flex justify-between items-center">
+                  <div>
+                    <span className="text-red-750 dark:text-red-400 font-bold">&gt; {r.name}</span>
+                    <p className="text-slate-500 dark:text-slate-450 mt-0.5">Reset Requested at {r.time}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${r.status === 'Pending' ? 'bg-red-500/10 text-red-655 dark:text-red-400 border border-red-500/20 animate-pulse' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'}`}>{r.status}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      )}
-
-      {/* Run Payroll Modal */}
-      {showPayrollModal && (
-        <Modal title={`Generate Salary — ${showPayrollModal.firstName} ${showPayrollModal.lastName}`} onClose={() => setShowPayrollModal(null)}>
-          <form onSubmit={handleGeneratePayroll} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Month">
-                <Select value={payrollForm.month} onChange={e => setPayrollForm(f => ({ ...f, month: e.target.value }))}>
-                  {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Year">
-                <Select value={payrollForm.year} onChange={e => setPayrollForm(f => ({ ...f, year: Number(e.target.value) }))}>
-                  <option value="2026">2026</option>
-                  <option value="2027">2027</option>
-                </Select>
-              </Field>
-              <Field label="Base Salary ($)"><Input required type="number" value={payrollForm.baseSalary} onChange={e => setPayrollForm(f => ({ ...f, baseSalary: Number(e.target.value) }))} /></Field>
-              <Field label="Allowances ($)"><Input type="number" value={payrollForm.allowances} onChange={e => setPayrollForm(f => ({ ...f, allowances: Number(e.target.value) }))} /></Field>
-              <Field label="Deductions ($)"><Input type="number" value={payrollForm.deductions} onChange={e => setPayrollForm(f => ({ ...f, deductions: Number(e.target.value) }))} /></Field>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Btn type="submit" variant="success" className="flex-1">Generate Slip</Btn>
-              <Btn type="button" variant="secondary" className="flex-1" onClick={() => setShowPayrollModal(null)}>Cancel</Btn>
-            </div>
-          </form>
-        </Modal>
-      )}
+      </div>
     </div>
   );
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ROOT: DYNAMIC DASHBOARD ROUTER
+// 8. AUDITOR DASHBOARD (Gray/Silver)
+// ═══════════════════════════════════════════════════════════════════════════════
+const AuditorDashboard = () => {
+  // Hardcoded audit logs
+  const rawAuditLogs = [
+    { time: '2026-07-05 12:04:12', user: 'super_admin', role: 'Super Admin', action: 'ROTATE_JWT_SECRET', module: 'Security', ip: '192.168.1.1' },
+    { time: '2026-07-05 11:45:00', user: 'finance_lead', role: 'Finance', action: 'DISPATCH_PAYROLL', module: 'Finance', ip: '192.168.1.4' },
+    { time: '2026-07-05 11:32:18', user: 'hr_manager', role: 'HR Manager', action: 'CREATE_EMPLOYEE', module: 'HR Directory', ip: '192.168.1.25' },
+    { time: '2026-07-05 11:15:45', user: 'it_admin', role: 'IT Administrator', action: 'ASSIGN_ASSET', module: 'Assets', ip: '192.168.1.12' },
+    { time: '2026-07-05 10:55:12', user: 'org_admin', role: 'Organization Admin', action: 'CREATE_DEPARTMENT', module: 'Org Setup', ip: '192.168.1.2' },
+    { time: '2026-07-05 10:44:00', user: 'super_admin', role: 'Super Admin', action: 'SUSPEND_ORG', module: 'Org Setup', ip: '192.168.1.1' },
+    { time: '2026-07-05 10:12:30', user: 'auditor_01', role: 'Auditor', action: 'EXPORT_COMPLIANCE', module: 'Audits', ip: '192.168.1.99' },
+    { time: '2026-07-05 09:55:00', user: 'system_core', role: 'System Engine', action: 'DB_REPLICATION', module: 'Database', ip: '127.0.0.1' },
+    { time: '2026-07-05 09:30:15', user: 'it_admin', role: 'IT Administrator', action: 'RESET_PASSWORD', module: 'Security', ip: '192.168.1.12' },
+    { time: '2026-07-05 09:00:00', user: 'system_core', role: 'System Engine', action: 'DAILY_HEALTH_CHECK', module: 'Database', ip: '127.0.0.1' },
+    { time: '2026-07-04 18:30:00', user: 'finance_lead', role: 'Finance', action: 'LOCK_ATTENDANCE', module: 'Finance', ip: '192.168.1.4' },
+    { time: '2026-07-04 17:15:22', user: 'hr_manager', role: 'HR Manager', action: 'POST_JOB_VACANCY', module: 'HR Directory', ip: '192.168.1.25' },
+    { time: '2026-07-04 16:45:10', user: 'manager_arjun', role: 'Manager', action: 'APPROVE_LEAVE_REQ', module: 'HR Directory', ip: '192.168.1.55' },
+    { time: '2026-07-04 15:30:00', user: 'sneha_lead', role: 'Team Lead', action: 'CREATE_SPRINT_TASK', module: 'Projects', ip: '192.168.1.72' },
+    { time: '2026-07-04 14:12:45', user: 'riya_sharma', role: 'Employee', action: 'CLOCK_IN_ENTRY', module: 'Attendance', ip: '192.168.1.101' },
+    { time: '2026-07-04 13:00:00', user: 'riya_sharma', role: 'Employee', action: 'UPDATE_TASK_PROGRESS', module: 'Projects', ip: '192.168.1.101' },
+    { time: '2026-07-04 11:22:15', user: 'karan_patel', role: 'Employee', action: 'SUBMIT_LEAVE_REQ', module: 'HR Directory', ip: '192.168.1.102' },
+    { time: '2026-07-04 10:15:30', user: 'super_admin', role: 'Super Admin', action: 'UPDATE_SYSTEM_POLICY', module: 'Security', ip: '192.168.1.1' },
+    { time: '2026-07-04 09:12:00', user: 'it_admin', role: 'IT Administrator', action: 'ALLOCATE_ASSET_IP', module: 'Assets', ip: '192.168.1.12' },
+    { time: '2026-07-04 08:30:00', user: 'system_core', role: 'System Engine', action: 'ROTATE_API_KEYS', module: 'Security', ip: '127.0.0.1' }
+  ];
+
+  // React state filters
+  const [filterModule, setFilterModule] = useState('All');
+  const [filterRole, setFilterRole] = useState('All');
+
+  const filteredLogs = rawAuditLogs.filter(l => {
+    const matchMod = filterModule === 'All' || l.module === filterModule;
+    const matchRole = filterRole === 'All' || l.role === filterRole;
+    return matchMod && matchRole;
+  });
+
+  const modules = ['All', 'Security', 'Finance', 'HR Directory', 'Assets', 'Org Setup', 'Audits', 'Database', 'Projects', 'Attendance'];
+  const roles = ['All', 'Super Admin', 'Finance', 'HR Manager', 'IT Administrator', 'Organization Admin', 'Auditor', 'System Engine', 'Manager', 'Team Lead', 'Employee'];
+
+  const handleExport = () => {
+    toast.success('Export initiated! Preparing CSV and PDF bundles.');
+  };
+
+  return (
+    <div className="space-y-6 text-slate-800 dark:text-white">
+      {/* Alert alert cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-between text-xs">
+          <div>
+            <p className="font-bold text-red-655 dark:text-red-400 uppercase tracking-widest text-[10px]">Failed Logins</p>
+            <p className="text-xl font-black mt-1 text-slate-900 dark:text-white">3 Incidents</p>
+          </div>
+          <span className="text-2xl">⚠️</span>
+        </div>
+        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between text-xs">
+          <div>
+            <p className="font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest text-[10px]">Permission Violations</p>
+            <p className="text-xl font-black mt-1 text-slate-900 dark:text-white">1 Incident</p>
+          </div>
+          <span className="text-2xl">🚫</span>
+        </div>
+        <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between text-xs">
+          <div>
+            <p className="font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest text-[10px]">Suspicious Activity</p>
+            <p className="text-xl font-black mt-1 text-slate-900 dark:text-white">0 Incidents</p>
+          </div>
+          <span className="text-2xl">🛡️</span>
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div className="glass-card border border-slate-200 dark:border-slate-500/30 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-4 text-xs">
+          <div className="space-y-1">
+            <label className="block text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Filter by Module</label>
+            <select
+              value={filterModule}
+              onChange={e => setFilterModule(e.target.value)}
+              className="bg-slate-50 dark:bg-[#0E1325] border border-slate-200 dark:border-[#1F2647] rounded-xl py-1.5 px-3 focus:outline-none focus:border-slate-550 text-slate-800 dark:text-white font-mono"
+            >
+              {modules.map((m, i) => <option key={i}>{m}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="block text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Filter by Role</label>
+            <select
+              value={filterRole}
+              onChange={e => setFilterRole(e.target.value)}
+              className="bg-slate-50 dark:bg-[#0E1325] border border-slate-200 dark:border-[#1F2647] rounded-xl py-1.5 px-3 focus:outline-none focus:border-slate-550 text-slate-800 dark:text-white font-mono"
+            >
+              {roles.map((r, i) => <option key={i}>{r}</option>)}
+            </select>
+          </div>
+        </div>
+        
+        <button
+          onClick={handleExport}
+          className="bg-slate-200 hover:bg-slate-300 dark:bg-slate-600 dark:hover:bg-slate-700 border border-slate-350 dark:border-slate-500/30 text-slate-800 dark:text-white font-bold py-2 px-4 rounded-xl text-xs transition-all hover:scale-[1.02]"
+        >
+          Export Logs
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Table audit log */}
+        <div className="lg:col-span-2 glass-card border border-slate-500/20 rounded-2xl p-5">
+          <h3 className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Immutable Audit Log Register</h3>
+          <div className="overflow-x-auto max-h-[500px]">
+            <table className="min-w-full text-[10px] divide-y divide-slate-100 dark:divide-[#1F2647]">
+              <thead>
+                <tr className="text-slate-500 dark:text-slate-400 text-left font-mono">
+                  <th className="pb-3 font-semibold">Timestamp</th>
+                  <th className="pb-3 font-semibold">User</th>
+                  <th className="pb-3 font-semibold">Role</th>
+                  <th className="pb-3 font-semibold">Action Event</th>
+                  <th className="pb-3 font-semibold">Module</th>
+                  <th className="pb-3 font-semibold">IP Address</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200 font-mono">
+                {filteredLogs.map((l, i) => (
+                  <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                    <td className="py-2.5 text-slate-550 dark:text-slate-400 font-bold">{l.time}</td>
+                    <td className="py-2.5 text-slate-900 dark:text-white font-bold">{l.user}</td>
+                    <td className="py-2.5"><span className="px-1.5 py-0.2 bg-slate-200/50 dark:bg-slate-500/10 text-slate-650 dark:text-slate-350 border border-slate-300 dark:border-slate-500/20 rounded uppercase text-[8px] font-black">{l.role}</span></td>
+                    <td className="py-2.5 text-slate-900 dark:text-slate-200 font-bold font-mono">{l.action}</td>
+                    <td className="py-2.5 text-cyan-650 dark:text-cyan-400">{l.module}</td>
+                    <td className="py-2.5 text-slate-500 dark:text-slate-450">{l.ip}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Compliance coverage */}
+        <div className="glass-card border border-slate-500/20 rounded-2xl p-5 space-y-4">
+          <h3 className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Compliance Audit Status</h3>
+          
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+              <div className="flex justify-between font-bold text-emerald-800 dark:text-emerald-400"><span>Security Settings</span><span>100% COVERAGE</span></div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Audit trail active, secrets rotation verified.</p>
+            </div>
+            <div className="p-3 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+              <div className="flex justify-between font-bold text-emerald-800 dark:text-emerald-400"><span>Finance Modules</span><span>100% COVERAGE</span></div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Audited payroll workflows matching tax limits.</p>
+            </div>
+            <div className="p-3 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 rounded-xl">
+              <div className="flex justify-between font-bold text-amber-800 dark:text-amber-400"><span>Projects & Taskboards</span><span>GAPS DETECTED</span></div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Task deletions do not log full state metadata.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DYNAMIC DASHBOARD ROUTER SWITCH
 // ═══════════════════════════════════════════════════════════════════════════════
 const AdminDashboard = () => {
   const { user } = useContext(AuthContext);
+  const { isDemoMode, demoRole } = useContext(DemoContext);
 
-  switch (user?.role) {
+  const activeRole = isDemoMode ? demoRole : user?.role;
+
+  switch (activeRole) {
     case 'Super Admin':         return <SuperAdminDashboard />;
     case 'Organization Admin':  return <OrgAdminDashboard />;
     case 'HR Manager':          return <HRManagerDashboard />;
     case 'IT Administrator':    return <ITAdminDashboard />;
-    case 'Manager':             return <ManagerDashboard />;
-    case 'Team Lead':           return <TeamLeadDashboard />;
+    case 'Auditor':             return <AuditorDashboard />;
     case 'Finance':             return <FinanceDashboard />;
+    case 'Team Lead':           return <TeamLeadDashboard />;
+    case 'Manager':             return <ManagerDashboard />;
     default:
       return (
         <div className="flex h-64 items-center justify-center text-red-500 text-xl font-bold">
-          Unauthorized Role Dashboard
+          Unauthorized Access Dashboard
         </div>
       );
   }

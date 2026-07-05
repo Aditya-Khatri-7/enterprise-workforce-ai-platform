@@ -5,6 +5,8 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import { AuthProvider, AuthContext } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { DemoProvider, DemoProgressProvider, DemoContext } from './context/DemoContext';
 import ProtectedRoute from './routes/ProtectedRoute';
 import RoleRoute from './routes/RoleRoute';
 
@@ -18,12 +20,22 @@ import EmployeeDashboard from './pages/EmployeeDashboard';
 import Profile from './pages/Profile';
 import AuditLogPage from './pages/AuditLogPage';
 import DashboardLayout from './layouts/DashboardLayout';
+import AccountStatus from './pages/AccountStatus';
+import SuperAdminRequestCenter from './pages/SuperAdminRequestCenter';
+import AIWelcomePage from './pages/AIWelcomePage';
+import DemoPlaceholderPage from './pages/DemoPlaceholderPage';
+import CreateOrgPlaceholderPage from './pages/CreateOrgPlaceholderPage';
+
+import PremiumBackground from './components/PremiumBackground';
+import CustomCursor from './components/CustomCursor';
 
 // Temporary placeholder components until they are fully built
 const DashboardRouter = () => {
   const { user } = useContext(AuthContext);
-  const adminRoles = ['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Manager', 'Team Lead', 'Finance'];
-  if (adminRoles.includes(user?.role)) {
+  const { isDemoMode, demoRole } = useContext(DemoContext);
+  const activeRole = isDemoMode ? demoRole : user?.role;
+  const adminRoles = ['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Manager', 'Team Lead', 'Finance', 'Auditor'];
+  if (adminRoles.includes(activeRole)) {
     return <Navigate to="/admin/dashboard" replace />;
   }
   return <Navigate to="/employee/dashboard" replace />;
@@ -34,44 +46,57 @@ const Unauthorized = () => <div className="p-10 text-2xl text-red-500">403 - Una
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <ToastContainer position="top-right" autoClose={3000} />
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/unauthorized" element={<Unauthorized />} />
+    <ThemeProvider>
+      <Router>
+        <AuthProvider>
+          <DemoProvider>
+            <DemoProgressProvider>
+              <PremiumBackground />
+              <CustomCursor />
+              <ToastContainer position="top-right" autoClose={3000} />
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/welcome" element={<AIWelcomePage />} />
+                <Route path="/demo" element={<DemoPlaceholderPage />} />
+                <Route path="/create-organization" element={<CreateOrgPlaceholderPage />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* Protected Routes */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<DashboardRouter />} />
-            
-            <Route element={<DashboardLayout />}>
-              {/* Admin & Manager & Lead & Finance Routes */}
-              <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Manager', 'Team Lead', 'Finance']} />}>
-                <Route path="/admin/dashboard" element={<AdminDashboard />} />
-              </Route>
-              <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator']} />}>
-                <Route path="/admin/employees" element={<EmployeeManagement />} />
-                <Route path="/admin/audit" element={<AuditLogPage />} />
-              </Route>
+                {/* Protected Routes */}
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/dashboard" element={<DashboardRouter />} />
+                  <Route path="/account-status" element={<AccountStatus />} />
+                  
+                  <Route element={<DashboardLayout />}>
+                    {/* Admin & Manager & Lead & Finance Routes */}
+                    <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Manager', 'Team Lead', 'Finance', 'Auditor']} />}>
+                      <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                      <Route path="/admin/requests" element={<SuperAdminRequestCenter />} />
+                    </Route>
+                    <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Auditor']} />}>
+                      <Route path="/admin/employees" element={<EmployeeManagement />} />
+                      <Route path="/admin/audit" element={<AuditLogPage />} />
+                    </Route>
 
-              {/* Employee Routes */}
-              <Route element={<RoleRoute allowedRoles={['Employee', 'Manager', 'Team Lead']} />}>
-                <Route path="/employee/dashboard" element={<EmployeeDashboard />} />
-              </Route>
-              
-              <Route path="/profile" element={<Profile />} />
-            </Route>
-          </Route>
+                    {/* Employee Routes */}
+                    <Route element={<RoleRoute allowedRoles={['Employee', 'Manager', 'Team Lead']} />}>
+                      <Route path="/employee/dashboard" element={<EmployeeDashboard />} />
+                    </Route>
+                    
+                    <Route path="/profile" element={<Profile />} />
+                  </Route>
+                </Route>
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AuthProvider>
-    </Router>
+                {/* Fallback */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </DemoProgressProvider>
+          </DemoProvider>
+        </AuthProvider>
+      </Router>
+    </ThemeProvider>
   );
 }
 

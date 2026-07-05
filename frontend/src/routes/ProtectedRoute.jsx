@@ -8,8 +8,8 @@ const ProtectedRoute = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-600"></div>
+      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-darkBg">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-indigo-600"></div>
       </div>
     );
   }
@@ -23,8 +23,17 @@ const ProtectedRoute = () => {
     return <Navigate to="/profile" state={{ forcePasswordChange: true }} replace />;
   }
 
+  // Force inactive users to Account Status Page
+  if (user.isActive === false && location.pathname !== '/account-status') {
+    return <Navigate to="/account-status" replace />;
+  }
+
+  // If user is active, prevent them from accessing Account Status Page
+  if (user.isActive !== false && location.pathname === '/account-status') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return <Outlet />;
 };
 
 export default ProtectedRoute;
-

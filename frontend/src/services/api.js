@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getMockData } from '../utils/mockDataEngine';
 
 const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
 const baseURL = `http://${hostname}:3000/api`;
@@ -7,6 +8,25 @@ const api = axios.create({
   baseURL,
   withCredentials: true, // Crucial for sending/receiving HTTP-Only cookies
 });
+
+api.interceptors.request.use(
+  (config) => {
+    if (localStorage.getItem('ewap_demo_mode') === 'true') {
+      config.adapter = async (cfg) => {
+        const mockResponse = getMockData(cfg.url, cfg.method, cfg.data);
+        return {
+          data: mockResponse,
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: cfg
+        };
+      };
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 
 let isRefreshing = false;

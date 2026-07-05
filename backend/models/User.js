@@ -48,6 +48,11 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  status: {
+    type: String,
+    enum: ['Active', 'Inactive', 'Suspended', 'Locked', 'Pending', 'Archived'],
+    default: 'Active'
   }
 }, { timestamps: true });
 

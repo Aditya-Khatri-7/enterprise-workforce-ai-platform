@@ -1,80 +1,85 @@
 import React, { useContext, useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { AuthContext } from '../context/AuthContext';
+import { DemoContext, DemoProgressContext } from '../context/DemoContext';
+import {
+  Calendar, Clock, CheckCircle, AlertTriangle, Play, Plus, FileText,
+  MessageSquare, User, ArrowRight, Layers, Award, ShieldAlert, Cpu
+} from 'lucide-react';
 
-// ─── Reusable sub-components ──────────────────────────────────────────────────
+// ─── Modal Component ──────────────────────────────────────────────────────────
 const Modal = ({ title, subtitle, onClose, children }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg z-10">
-      <div className="px-6 py-5 border-b border-gray-100">
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-            {subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
-          </div>
-          <button onClick={onClose} className="ml-4 text-gray-400 hover:text-gray-600 text-2xl leading-none font-light">&times;</button>
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="relative bg-white dark:bg-[#151A30] border border-slate-200 dark:border-emerald-500/30 rounded-2xl shadow-2xl w-full max-w-lg z-10 p-6 text-slate-800 dark:text-white"
+    >
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#1F2647] pb-3 mb-4">
+        <div>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">{title}</h3>
+          {subtitle && <p className="text-[10px] text-slate-550 dark:text-slate-400 mt-1">{subtitle}</p>}
         </div>
+        <button onClick={onClose} className="text-slate-400 dark:text-slate-450 hover:text-slate-900 dark:hover:text-white text-xl font-light">&times;</button>
       </div>
-      <div className="px-6 py-5">{children}</div>
-    </div>
+      {children}
+    </motion.div>
   </div>
 );
 
 const Field = ({ label, required, children }) => (
-  <div>
-    <label className="block text-sm font-semibold text-gray-700 mb-1">
+  <div className="space-y-1">
+    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
       {label}{required && <span className="text-red-500 ml-0.5">*</span>}
     </label>
     {children}
   </div>
 );
 
-const inputCls = "block w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition";
+const inputCls = "block w-full border border-slate-200 dark:border-[#1F2647] bg-slate-50 dark:bg-[#0E1325]/60 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all text-slate-900 dark:text-white";
 const Input = (props) => <input {...props} className={inputCls} />;
 const Textarea = (props) => <textarea {...props} className={`${inputCls} resize-none`} />;
 const Select = ({ children, ...props }) => (
-  <select {...props} className={`${inputCls} bg-white`}>{children}</select>
+  <select {...props} className={`${inputCls} bg-slate-50 dark:bg-[#0E1325]`}>{children}</select>
 );
 
-const Btn = ({ children, variant = 'primary', size = 'md', className = '', ...props }) => {
-  const sizes = { sm: 'py-1.5 px-3 text-xs', md: 'py-2 px-4 text-sm', lg: 'py-2.5 px-5 text-sm' };
+const Btn = ({ children, variant = 'primary', className = '', ...props }) => {
+  const base = 'inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all focus:outline-none disabled:opacity-60 hover:scale-[1.02] active:scale-[0.98]';
   const variants = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm',
-    success: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm',
-    danger: 'bg-red-500 hover:bg-red-600 text-white shadow-sm',
-    ghost: 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 shadow-sm',
+    primary: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+    success: 'bg-teal-600 hover:bg-teal-700 text-white',
+    danger: 'bg-red-500 hover:bg-red-650 text-white',
+    secondary: 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 dark:bg-[#1F2647] dark:hover:bg-[#2A335B] dark:text-slate-200 dark:border-[#2F3A6E]'
   };
-  return (
-    <button {...props} className={`inline-flex items-center justify-center rounded-lg font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 disabled:opacity-60 ${sizes[size]} ${variants[variant]} ${className}`}>
-      {children}
-    </button>
-  );
+  return <button {...props} className={`${base} ${variants[variant]} ${className}`}>{children}</button>;
 };
 
 const LEAVE_BADGE = {
-  Pending: 'bg-amber-50 text-amber-700 border border-amber-200',
-  Approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  Rejected: 'bg-red-50 text-red-700 border border-red-200',
+  Pending: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20',
+  Approved: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20',
+  Rejected: 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20',
 };
 
 const TICKET_BADGE = {
-  Open: 'bg-blue-50 text-blue-700 border border-blue-200',
-  'In Progress': 'bg-amber-50 text-amber-700 border border-amber-200',
-  Resolved: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  Closed: 'bg-gray-100 text-gray-600 border border-gray-200',
+  Open: 'bg-blue-500/10 text-blue-605 dark:text-blue-400 border border-blue-500/20',
+  'In Progress': 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20',
+  Resolved: 'bg-emerald-500/10 text-emerald-605 dark:text-emerald-400 border border-emerald-500/20',
+  Closed: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20',
 };
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 const EmployeeDashboard = () => {
   const { user } = useContext(AuthContext);
+  const { progressStore, setProgress } = useContext(DemoProgressContext);
   const emp = user?.employeeRef || {};
-  const firstName = emp.firstName || user?.username || 'there';
+  const firstName = emp.firstName || user?.username || 'Riya';
 
   const [leaves, setLeaves] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [todayLog, setTodayLog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -87,17 +92,22 @@ const EmployeeDashboard = () => {
   const [ticketForm, setTicketForm] = useState({ category: 'General', subject: '', description: '' });
   const [submitting, setSubmitting] = useState(false);
 
+  // Local state for Riya Sharma's task status
+  const [riyaTaskStatus, setRiyaTaskStatus] = useState('In Progress');
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [leaveRes, ticketRes] = await Promise.all([
+      const [leaveRes, ticketRes, todayRes] = await Promise.all([
         api.get('/leaves'),
         api.get('/support'),
+        api.get('/attendance/today').catch(() => ({ data: null }))
       ]);
       setLeaves(leaveRes.data);
       setTickets(ticketRes.data);
+      setTodayLog(todayRes.data);
     } catch (err) {
-      // silently handle — user might not have employee ref yet
+      /* silently handle */
     } finally {
       setLoading(false);
     }
@@ -105,11 +115,35 @@ const EmployeeDashboard = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  // ─── Leave Application ───────────────────────────────────────────────────────
+  // Clock In / Out
+  const handleClockIn = async () => {
+    try {
+      const location = { lat: 12.9716, lng: 77.5946, address: 'Bangalore Office' };
+      const res = await api.post('/attendance/clock-in', { location });
+      toast.success(res.data.message || 'Clocked in successfully!');
+      setTodayLog(res.data.log);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Clock in failed');
+    }
+  };
+
+  const handleClockOut = async () => {
+    try {
+      const res = await api.post('/attendance/clock-out');
+      toast.success(res.data.message || 'Clocked out successfully!');
+      setTodayLog(res.data.log);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Clock out failed');
+    }
+  };
+
+  // Leave Submit
   const handleApplyLeave = async (e) => {
     e.preventDefault();
     if (!leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason.trim()) {
-      toast.error('Please fill all required fields');
+      toast.error('Please fill all fields');
       return;
     }
     setSubmitting(true);
@@ -126,7 +160,7 @@ const EmployeeDashboard = () => {
     }
   };
 
-  // ─── Support Ticket ──────────────────────────────────────────────────────────
+  // Raise Ticket
   const handleRaiseTicket = async (e) => {
     e.preventDefault();
     if (!ticketForm.subject.trim()) {
@@ -136,7 +170,7 @@ const EmployeeDashboard = () => {
     setSubmitting(true);
     try {
       await api.post('/support', ticketForm);
-      toast.success('Support ticket raised! IT team will assist you shortly.');
+      toast.success('Support ticket raised!');
       setShowTicketModal(false);
       setTicketForm({ category: 'General', subject: '', description: '' });
       load();
@@ -147,362 +181,404 @@ const EmployeeDashboard = () => {
     }
   };
 
-  // ─── Computed values ─────────────────────────────────────────────────────────
-  const pendingLeaves  = leaves.filter(l => l.status === 'Pending').length;
+  // Sync state values
+  const riyaProgress = progressStore['riya_sharma'] !== undefined ? progressStore['riya_sharma'] : 65;
+  const karanProgress = progressStore['karan_patel'] !== undefined ? progressStore['karan_patel'] : 80;
+  const priyaProgress = progressStore['priya_singh'] !== undefined ? progressStore['priya_singh'] : 40;
+
+  const handleSliderChange = (e) => {
+    const newVal = parseInt(e.target.value, 10);
+    setProgress('riya_sharma', 't1', newVal);
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6 text-slate-800 dark:text-white">
+        <div className="h-44 w-full skeleton-shimmer bg-[#151A30]/50 rounded-3xl" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(n => <div key={n} className="h-24 skeleton-shimmer bg-[#151A30]/50 rounded-2xl" />)}
+        </div>
+      </div>
+    );
+  }
+
+  const pendingLeaves = leaves.filter(l => l.status === 'Pending').length;
   const approvedLeaves = leaves.filter(l => l.status === 'Approved').length;
-  const openTickets    = tickets.filter(t => t.status === 'Open' || t.status === 'In Progress').length;
+  const openTickets = tickets.filter(t => t.status === 'Open' || t.status === 'In Progress').length;
 
-  const profileFields = [emp.firstName, emp.lastName, emp.mobile, emp.address, emp.emergencyContact];
-  const profileComplete = Math.round((profileFields.filter(Boolean).length / profileFields.length) * 100);
-
-  // ─── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-slate-800 dark:text-white font-sans">
+      
+      {/* Welcome Banner */}
+      <div className="rounded-3xl overflow-hidden shadow-xl border border-emerald-500/25 bg-gradient-to-r from-emerald-500/5 via-[#151A30]/5 to-teal-500/5 dark:from-emerald-950 dark:via-[#151A30] dark:to-teal-950 p-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white">Good day, {firstName}! 👋</h2>
+            <p className="text-emerald-700 dark:text-emerald-350 text-xs font-semibold">
+              Software Developer · Engineering
+            </p>
+            <span className="inline-block bg-emerald-500/10 text-emerald-800 dark:bg-emerald-500/20 dark:text-cyan-300 text-[10px] font-mono px-3 py-1 rounded-full border border-emerald-500/30">
+              Staff ID: EMP_103
+            </span>
+          </div>
 
-      {/* ── Welcome Banner ─────────────────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden shadow-sm">
-        <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 px-8 py-8 text-white">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          {/* Clock In / Out */}
+          <div className="glass-card border border-emerald-500/20 p-4 rounded-2xl flex flex-col sm:flex-row items-center gap-4">
             <div>
-              <h2 className="text-2xl font-bold">Good day, {firstName}! 👋</h2>
-              <p className="mt-1 text-blue-100">
-                {emp.designation ? `${emp.designation} · ` : ''}{emp.department || 'Your workspace is ready'}
-              </p>
-              {emp.employeeId && (
-                <span className="mt-3 inline-block bg-white/20 text-white text-xs font-mono px-3 py-1 rounded-full">
-                  ID: {emp.employeeId}
-                </span>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Daily Attendance</p>
+              {todayLog ? (
+                <p className="text-xs font-black mt-1 font-mono text-slate-900 dark:text-white">
+                  Status: <span className="text-emerald-600 dark:text-emerald-450 uppercase tracking-widest font-black">{todayLog.status}</span>
+                  {todayLog.clockIn && ` (${todayLog.clockIn} - ${todayLog.clockOut || 'Working'})`}
+                </p>
+              ) : (
+                <p className="text-xs text-slate-600 dark:text-slate-350 mt-0.5 font-semibold">Not clocked in today.</p>
               )}
             </div>
-            <div className="flex gap-3 flex-wrap">
-              <Btn variant="success" onClick={() => setShowLeaveModal(true)}>
-                <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                Apply Leave
-              </Btn>
-              <Btn variant="ghost" className="!bg-white/20 !text-white !border-white/30 hover:!bg-white/30" onClick={() => setShowTicketModal(true)}>
-                <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                IT Support
-              </Btn>
+            <div className="flex gap-2">
+              {!todayLog && (
+                <Btn variant="primary" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleClockIn}>Clock In</Btn>
+              )}
+              {todayLog && !todayLog.clockOut && (
+                <Btn variant="danger" className="bg-red-500 hover:bg-red-650" onClick={handleClockOut}>Clock Out</Btn>
+              )}
+              {todayLog && todayLog.clockOut && (
+                <span className="text-xs bg-slate-100 dark:bg-[#1F2647] text-slate-500 dark:text-slate-400 font-bold py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700 select-none">Completed</span>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Stat Cards ────────────────────────────────────────────────────────── */}
+      {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Leave Requests', value: leaves.length, sub: `${pendingLeaves} pending`, color: 'border-amber-400', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', iconBg: 'bg-amber-50 text-amber-600' },
-          { label: 'Approved Leaves', value: approvedLeaves, sub: 'this period', color: 'border-emerald-400', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', iconBg: 'bg-emerald-50 text-emerald-600' },
-          { label: 'Support Tickets', value: tickets.length, sub: `${openTickets} open`, color: 'border-blue-400', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', iconBg: 'bg-blue-50 text-blue-600' },
-          { label: 'Profile Complete', value: `${profileComplete}%`, sub: 'of your profile', color: 'border-purple-400', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', iconBg: 'bg-purple-50 text-purple-600' },
-        ].map(card => (
-          <div key={card.label} className={`bg-white rounded-xl shadow-sm p-5 border-l-4 ${card.color} hover:shadow-md transition-shadow`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{card.label}</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">{card.value}</p>
-                <p className="mt-0.5 text-xs text-gray-500">{card.sub}</p>
-              </div>
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${card.iconBg}`}>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={card.icon} />
-                </svg>
-              </div>
+          { label: 'Leave Requests', value: leaves.length, sub: `${pendingLeaves} pending`, color: 'border-emerald-400', icon: Calendar, bg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+          { label: 'Approved Leaves', value: approvedLeaves, sub: 'This month', color: 'border-teal-400', icon: CheckCircle, bg: 'bg-teal-500/10 text-teal-605 dark:text-teal-400' },
+          { label: 'Support Tickets', value: tickets.length, sub: `${openTickets} active`, color: 'border-cyan-400', icon: ShieldAlert, bg: 'bg-cyan-500/10 text-cyan-655 dark:text-cyan-400' },
+          { label: 'Work Shift', value: '09:00 - 18:00', sub: 'Engineering Standard', color: 'border-indigo-400', icon: Clock, bg: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400' }
+        ].map((card, i) => (
+          <motion.div
+            key={i}
+            whileHover={{ y: -3 }}
+            className={`glass-card rounded-2xl p-5 border-l-4 ${card.color} border-y border-r border-indigo-500/10 flex items-center justify-between`}
+          >
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{card.label}</p>
+              <p className="text-xl font-black text-slate-900 dark:text-white mt-1 font-mono">{card.value}</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{card.sub}</p>
             </div>
-          </div>
+            <div className={`p-2.5 rounded-xl ${card.bg}`}>
+              <card.icon className="h-4.5 w-4.5" />
+            </div>
+          </motion.div>
         ))}
       </div>
 
-      {/* ── Info Cards Row ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Department & Manager */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">My Work Info</h4>
-          <dl className="space-y-3">
-            {[
-              { label: 'Department', value: emp.department },
-              { label: 'Designation', value: emp.designation },
-              { label: 'Employee ID', value: emp.employeeId, mono: true },
-              { label: 'Joining Date', value: emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : null },
-              { label: 'Status', value: emp.status },
-            ].map(({ label, value, mono }) => (
-              <div key={label} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
-                <dt className="text-xs text-gray-500">{label}</dt>
-                <dd className={`text-sm font-semibold text-gray-900 ${mono ? 'font-mono' : ''}`}>{value || <span className="text-gray-300 font-normal">—</span>}</dd>
+      {/* Main Core Columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Columns: Tasks and Team Progress */}
+        <div className="lg:col-span-2 space-y-6">
+          
+          {/* MY TASKS */}
+          <div className="glass-card border border-emerald-500/20 rounded-2xl p-5 space-y-4">
+            <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">My Assigned Tasks</h3>
+            <div className="p-4 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/45 rounded-xl space-y-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900 dark:text-white">API Integration</h4>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Project: <span className="text-emerald-700 dark:text-emerald-350 font-semibold">Employee Portal v2</span></p>
+                </div>
+                <span className="px-2 py-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 text-[9px] uppercase tracking-widest font-black">HIGH PRIORITY</span>
               </div>
-            ))}
-          </dl>
-          <div className="mt-4">
-            <Link to="/profile" className="text-sm text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
-              Edit Profile
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-            </Link>
-          </div>
-        </div>
 
-        {/* Profile Completion */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Profile Completion</h4>
-          <div className="flex items-center justify-center py-4">
-            <div className="relative w-32 h-32">
-              <svg viewBox="0 0 36 36" className="w-32 h-32 -rotate-90">
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e5e7eb" strokeWidth="3" />
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#3b82f6" strokeWidth="3"
-                  strokeDasharray={`${profileComplete} ${100 - profileComplete}`} strokeDashoffset="0" strokeLinecap="round" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold text-gray-900">{profileComplete}%</span>
+              {/* Status Selector Dropdown */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-3 text-xs">
+                <div className="space-y-1">
+                  <label className="block text-slate-500 dark:text-slate-400 font-bold uppercase text-[9px]">Task Status</label>
+                  <select 
+                    value={riyaTaskStatus} 
+                    onChange={(e) => {
+                      setRiyaTaskStatus(e.target.value);
+                      toast.success(`Task status marked as ${e.target.value}!`);
+                    }} 
+                    className="w-full bg-slate-50 dark:bg-[#0E1325] border border-slate-200 dark:border-[#1F2647] rounded-xl p-2 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-bold font-mono"
+                  >
+                    <option>To Do</option>
+                    <option>In Progress</option>
+                    <option>Review</option>
+                    <option>Completed</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-slate-500 dark:text-slate-400 font-bold uppercase text-[9px]">Deadline</label>
+                  <p className="p-2 border border-slate-200 dark:border-[#1F2647] bg-slate-50/20 dark:bg-[#0E1325]/30 rounded-xl font-semibold font-mono text-cyan-705 dark:text-cyan-300">2026-07-15</p>
+                </div>
+              </div>
+
+              {/* Progress Slider (Updates synced store context in real time) */}
+              <div className="space-y-2 border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-3">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-550 dark:text-slate-400 uppercase font-black tracking-widest text-[9px]">Task Progress Completion</span>
+                  <span className="text-slate-900 dark:text-white font-bold font-mono">{riyaProgress}%</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={riyaProgress}
+                    onChange={handleSliderChange}
+                    className="w-full accent-emerald-500 h-1.5 bg-slate-200 dark:bg-[#0E1325] rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
               </div>
             </div>
           </div>
-          <div className="space-y-2 mt-2">
-            {[
-              { label: 'Name', done: !!(emp.firstName && emp.lastName) },
-              { label: 'Mobile', done: !!emp.mobile },
-              { label: 'Address', done: !!emp.address },
-              { label: 'Emergency Contact', done: !!emp.emergencyContact },
-            ].map(item => (
-              <div key={item.label} className="flex items-center gap-2">
-                <div className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-xs ${item.done ? 'bg-emerald-500' : 'bg-gray-200'}`}>
-                  {item.done ? '✓' : ''}
+
+          {/* MY TEAM'S PROGRESS */}
+          <div className="glass-card border border-emerald-500/20 rounded-2xl p-5 space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">My Team's Progress</h3>
+              <span className="text-[9px] bg-emerald-500/10 text-emerald-650 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-black tracking-wider uppercase">Live — updates as team marks progress</span>
+            </div>
+            
+            <div className="space-y-3.5">
+              {/* Riya Sharma */}
+              <div className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/30 rounded-xl space-y-2">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-slate-850 dark:text-white">Riya Sharma (You)</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-mono">{riyaProgress}%</span>
                 </div>
-                <span className={`text-sm ${item.done ? 'text-gray-700' : 'text-gray-400'}`}>{item.label}</span>
+                <p className="text-[10px] text-slate-500 dark:text-slate-450 font-mono">&gt; Task: API Integration</p>
+                <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-250 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${riyaProgress}%` }} />
+                </div>
               </div>
-            ))}
-          </div>
-          <div className="mt-4">
-            <Link to="/profile" className="w-full block text-center bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-sm py-2 rounded-lg transition-colors">
-              Complete Profile →
-            </Link>
+
+              {/* Karan Patel */}
+              <div className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/30 rounded-xl space-y-2">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-slate-850 dark:text-white">Karan Patel</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-mono">{karanProgress}%</span>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-455 font-mono">&gt; Task: UI Components</p>
+                <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-250 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${karanProgress}%` }} />
+                </div>
+              </div>
+
+              {/* Priya Singh */}
+              <div className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/30 rounded-xl space-y-2">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-slate-850 dark:text-white">Priya Singh</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-mono">{priyaProgress}%</span>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-455 font-mono">&gt; Task: Testing</p>
+                <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-250 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${priyaProgress}%` }} />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Quick Actions</h4>
-          <div className="space-y-2">
-            {[
-              { label: 'Apply for Leave', desc: 'Submit a new leave application', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'text-blue-600 bg-blue-50', action: () => setShowLeaveModal(true) },
-              { label: 'IT Support Ticket', desc: 'Raise a technical support request', icon: 'M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z', color: 'text-orange-600 bg-orange-50', action: () => setShowTicketModal(true) },
-              { label: 'View My Leaves', desc: 'See all leave requests', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3', color: 'text-emerald-600 bg-emerald-50', action: () => setActiveTab('leaves') },
-              { label: 'Update Profile', desc: 'Edit your personal information', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', color: 'text-purple-600 bg-purple-50', action: null, link: '/profile' },
-            ].map(item => (
-              item.link ? (
-                <Link key={item.label} to={item.link} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all group">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${item.color}`}>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon} /></svg>
-                  </div>
-                  <div className="min-w-0"><p className="text-sm font-semibold text-gray-800 group-hover:text-blue-600">{item.label}</p><p className="text-xs text-gray-500">{item.desc}</p></div>
-                </Link>
-              ) : (
-                <button key={item.label} onClick={item.action} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all group text-left">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${item.color}`}>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon} /></svg>
-                  </div>
-                  <div className="min-w-0"><p className="text-sm font-semibold text-gray-800 group-hover:text-blue-600">{item.label}</p><p className="text-xs text-gray-500">{item.desc}</p></div>
-                </button>
-              )
-            ))}
+        {/* Right Columns: Actions and Schedule */}
+        <div className="space-y-6">
+          {/* Quick Actions Panel */}
+          <div className="glass-card border border-emerald-500/20 rounded-2xl p-5 space-y-4">
+            <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Self Service Portal</h3>
+            <div className="flex flex-col gap-2.5">
+              <button onClick={() => setShowLeaveModal(true)} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-[#1E2544]/5 dark:bg-[#1E2544]/60 border border-slate-200 dark:border-[#1F2647] hover:border-emerald-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between">
+                <span>Apply for Personal Leave</span>
+                <ArrowRight className="h-4 w-4 text-emerald-605 dark:text-emerald-400" />
+              </button>
+              <button onClick={() => toast.success('Downloading latest payroll payslip PDF...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-[#1E2544]/5 dark:bg-[#1E2544]/60 border border-slate-200 dark:border-[#1F2647] hover:border-emerald-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between">
+                <span>Download Salary Payslip</span>
+                <ArrowRight className="h-4 w-4 text-emerald-605 dark:text-emerald-400" />
+              </button>
+              <button onClick={() => setShowTicketModal(true)} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-[#1E2544]/5 dark:bg-[#1E2544]/60 border border-slate-200 dark:border-[#1F2647] hover:border-emerald-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between">
+                <span>Raise Helpdesk Support Ticket</span>
+                <ArrowRight className="h-4 w-4 text-emerald-605 dark:text-emerald-400" />
+              </button>
+              <button onClick={() => toast.info('Launching Workforce AI assistant session...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-[#1E2544]/5 dark:bg-[#1E2544]/60 border border-slate-200 dark:border-[#1F2647] hover:border-emerald-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between">
+                <span>Ask AI Workforce Assistant</span>
+                <ArrowRight className="h-4 w-4 text-emerald-605 dark:text-emerald-400" />
+              </button>
+            </div>
+          </div>
+
+          {/* Today's schedule info */}
+          <div className="glass-card border border-emerald-500/20 rounded-2xl p-5 space-y-4">
+            <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Shift Schedule Calendar</h3>
+            <div className="space-y-3 font-mono text-[10px] text-slate-600 dark:text-slate-350">
+              <div className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/25 dark:bg-[#0E1325]/25 rounded-xl space-y-1.5">
+                <span className="text-emerald-605 dark:text-emerald-400 font-bold">Standard Day Shift</span>
+                <p className="text-slate-500 dark:text-slate-400">Regular hours: 09:00 AM to 06:00 PM</p>
+                <div className="flex justify-between border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-1.5 text-[9px] text-slate-550">
+                  <span>Weekly Target: 40 hrs</span>
+                  <span>Completed: 36.5 hrs</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Tabs ──────────────────────────────────────────────────────────────── */}
+      {/* Tabs */}
       <div>
-        <div className="flex gap-1 border-b border-gray-200 bg-white rounded-t-xl px-4 shadow-sm">
-          {[['overview', 'Overview'], ['leaves', `My Leaves (${leaves.length})`], ['tickets', `Support Tickets (${tickets.length})`]].map(([k, l]) => (
-            <button key={k} onClick={() => setActiveTab(k)}
-              className={`py-3.5 px-4 text-sm font-semibold border-b-2 -mb-px transition-colors whitespace-nowrap ${activeTab === k ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+        <div className="flex gap-2 border-b border-slate-200 dark:border-[#1F2647] bg-slate-50/40 dark:bg-[#151A30]/40 rounded-t-2xl px-4 py-2">
+          {[['overview', 'My Overview'], ['leaves', `My Leaves (${leaves.length})`], ['tickets', `Support tickets (${tickets.length})`]].map(([k, l]) => (
+            <button key={k} onClick={() => setActiveTab(k)} className={`py-2.5 px-4 text-xs font-bold uppercase tracking-wider border-b-2 -mb-px transition-colors ${activeTab === k ? 'border-emerald-555 text-emerald-650 dark:border-emerald-500 dark:text-emerald-450 font-extrabold' : 'border-transparent text-slate-500 dark:text-slate-450 hover:text-slate-900 dark:hover:text-white'}`}>
               {l}
             </button>
           ))}
         </div>
 
-        {/* Overview Tab */}
-        {activeTab === 'overview' && (
-          <div className="bg-white rounded-b-xl shadow-sm border-x border-b border-gray-100 p-6">
-            {leaves.length === 0 && tickets.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <svg className="mx-auto w-12 h-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                <p className="font-medium">No activity yet</p>
-                <p className="text-sm mt-1">Use the quick actions above to get started</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Recent Activity</p>
-                {[...leaves.slice(0, 3).map(l => ({ type: 'leave', data: l })),
-                  ...tickets.slice(0, 3).map(t => ({ type: 'ticket', data: t }))]
-                  .sort((a, b) => new Date(b.data.createdAt) - new Date(a.data.createdAt))
-                  .slice(0, 5)
-                  .map(item => (
-                    <div key={item.data._id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${item.type === 'leave' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {item.type === 'leave' ? '🌴' : '🎫'}
+        {/* Tab contents */}
+        <div className="glass-card rounded-b-2xl border-x border-b border-slate-200 dark:border-[#1F2647] p-6 space-y-6">
+          {activeTab === 'overview' && (
+            <div className="space-y-4">
+              <p className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest">Recent Activity Logs</p>
+              {leaves.length === 0 && tickets.length === 0 ? (
+                <div className="text-center py-8 text-slate-450 dark:text-slate-500 text-xs">No active transactions reported yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {[...leaves.map(l => ({ type: 'leave', d: l })), ...tickets.map(t => ({ type: 'ticket', d: t }))]
+                    .sort((a, b) => new Date(b.d.createdAt) - new Date(a.d.createdAt))
+                    .slice(0, 5)
+                    .map((item, idx) => (
+                      <div key={idx} className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/30 rounded-xl flex justify-between items-center text-xs">
+                        <div>
+                          <p className="font-bold text-slate-850 dark:text-white">
+                            {item.type === 'leave' ? `[Leave] Applied: ${item.d.type} - ${item.d.reason}` : `[Support] ${item.d.subject}`}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-455 mt-1">{new Date(item.d.createdAt).toLocaleDateString()}</p>
+                        </div>
+                        <span className={`px-2.5 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider ${item.type === 'leave' ? LEAVE_BADGE[item.d.status] : TICKET_BADGE[item.d.status]}`}>
+                          {item.d.status}
+                        </span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800">{item.type === 'leave' ? `${item.data.type} Leave — ${item.data.reason}` : `[${item.data.category}] ${item.data.subject}`}</p>
-                        <p className="text-xs text-gray-400">{new Date(item.data.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                      </div>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${item.type === 'leave' ? LEAVE_BADGE[item.data.status] : TICKET_BADGE[item.data.status]}`}>
-                        {item.data.status}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Leaves Tab */}
-        {activeTab === 'leaves' && (
-          <div className="bg-white rounded-b-xl shadow-sm border-x border-b border-gray-100">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h4 className="font-bold text-gray-900">My Leave Requests</h4>
-              <Btn variant="primary" size="sm" onClick={() => setShowLeaveModal(true)}>+ Apply Leave</Btn>
+                    ))}
+                </div>
+              )}
             </div>
-            {loading ? (
-              <div className="py-12 text-center text-gray-400">Loading...</div>
-            ) : leaves.length === 0 ? (
-              <div className="py-12 text-center text-gray-400">
-                <p className="font-medium">No leave requests submitted yet</p>
-                <p className="text-sm mt-1">Apply for your first leave above</p>
+          )}
+
+          {activeTab === 'leaves' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">Leave Logs</h4>
+                <Btn onClick={() => setShowLeaveModal(true)}>Apply Leave</Btn>
               </div>
-            ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full text-sm divide-y divide-gray-100">
-                  <thead className="bg-gray-50">
-                    <tr>{['Type', 'From', 'To', 'Reason', 'Applied On', 'Status'].map(h => (
-                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
-                    ))}</tr>
+                <table className="min-w-full text-xs divide-y divide-slate-200 dark:divide-[#1F2647]">
+                  <thead>
+                    <tr className="text-slate-550 dark:text-slate-400 text-left font-mono">
+                      <th className="pb-3 font-semibold">Type</th>
+                      <th className="pb-3 font-semibold">Duration</th>
+                      <th className="pb-3 font-semibold">Reason</th>
+                      <th className="pb-3 font-semibold">Status</th>
+                    </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200 font-mono">
                     {leaves.map(l => (
-                      <tr key={l._id} className="hover:bg-gray-50">
-                        <td className="px-5 py-3.5">
-                          <span className="px-2 py-0.5 rounded text-xs font-bold bg-indigo-50 text-indigo-700">{l.type}</span>
-                        </td>
-                        <td className="px-5 py-3.5 font-medium text-gray-900">{new Date(l.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
-                        <td className="px-5 py-3.5 text-gray-600">{new Date(l.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                        <td className="px-5 py-3.5 text-gray-600 max-w-xs truncate" title={l.reason}>{l.reason}</td>
-                        <td className="px-5 py-3.5 text-gray-400 text-xs">{new Date(l.createdAt).toLocaleDateString()}</td>
-                        <td className="px-5 py-3.5">
-                          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${LEAVE_BADGE[l.status]}`}>{l.status}</span>
+                      <tr key={l._id} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                        <td className="py-3 text-emerald-600 dark:text-emerald-450 font-bold">{l.type}</td>
+                        <td className="py-3 text-slate-600 dark:text-slate-350">{new Date(l.startDate).toLocaleDateString()} to {new Date(l.endDate).toLocaleDateString()}</td>
+                        <td className="py-3 text-slate-600 dark:text-slate-350 truncate max-w-xs">{l.reason}</td>
+                        <td className="py-3">
+                          <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider ${LEAVE_BADGE[l.status]}`}>
+                            {l.status}
+                          </span>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Tickets Tab */}
-        {activeTab === 'tickets' && (
-          <div className="bg-white rounded-b-xl shadow-sm border-x border-b border-gray-100">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h4 className="font-bold text-gray-900">My Support Tickets</h4>
-              <Btn variant="primary" size="sm" onClick={() => setShowTicketModal(true)}>+ New Ticket</Btn>
             </div>
-            {loading ? (
-              <div className="py-12 text-center text-gray-400">Loading...</div>
-            ) : tickets.length === 0 ? (
-              <div className="py-12 text-center text-gray-400">
-                <p className="font-medium">No support tickets raised yet</p>
-                <p className="text-sm mt-1">Raise a ticket if you need IT assistance</p>
+          )}
+
+          {activeTab === 'tickets' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">Support Tickets</h4>
+                <Btn onClick={() => setShowTicketModal(true)}>Raise Ticket</Btn>
               </div>
-            ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full text-sm divide-y divide-gray-100">
-                  <thead className="bg-gray-50">
-                    <tr>{['Category', 'Subject', 'Description', 'Raised On', 'Status'].map(h => (
-                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
-                    ))}</tr>
+                <table className="min-w-full text-xs divide-y divide-slate-200 dark:divide-[#1F2647]">
+                  <thead>
+                    <tr className="text-slate-550 dark:text-slate-400 text-left font-mono">
+                      <th className="pb-3 font-semibold">Category</th>
+                      <th className="pb-3 font-semibold">Subject</th>
+                      <th className="pb-3 font-semibold">Details</th>
+                      <th className="pb-3 font-semibold">Status</th>
+                    </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200 font-mono">
                     {tickets.map(t => (
-                      <tr key={t._id} className="hover:bg-gray-50">
-                        <td className="px-5 py-3.5">
-                          <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-50 text-orange-700">{t.category}</span>
-                        </td>
-                        <td className="px-5 py-3.5 font-semibold text-gray-900">{t.subject}</td>
-                        <td className="px-5 py-3.5 text-gray-500 max-w-xs truncate" title={t.description}>{t.description || '—'}</td>
-                        <td className="px-5 py-3.5 text-gray-400 text-xs">{new Date(t.createdAt).toLocaleDateString()}</td>
-                        <td className="px-5 py-3.5">
-                          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${TICKET_BADGE[t.status]}`}>{t.status}</span>
+                      <tr key={t._id} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                        <td className="py-3 text-emerald-600 dark:text-emerald-455 font-bold">{t.category}</td>
+                        <td className="py-3 text-slate-900 dark:text-white font-bold">{t.subject}</td>
+                        <td className="py-3 text-slate-600 dark:text-slate-350 truncate max-w-xs">{t.description || '—'}</td>
+                        <td className="py-3">
+                          <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider ${TICKET_BADGE[t.status]}`}>
+                            {t.status}
+                          </span>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ── Leave Application Modal ───────────────────────────────────────────── */}
-      {showLeaveModal && (
-        <Modal
-          title="Apply for Leave"
-          subtitle="Your request will be reviewed by the organization admin"
-          onClose={() => setShowLeaveModal(false)}
-        >
-          <form onSubmit={handleApplyLeave} className="space-y-4">
-            <Field label="Leave Type" required>
-              <Select value={leaveForm.type} onChange={e => setLeaveForm(f => ({ ...f, type: e.target.value }))}>
-                {['Casual', 'Sick', 'Annual', 'Maternity', 'Paternity'].map(t => (
-                  <option key={t}>{t}</option>
-                ))}
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Start Date" required>
-                <Input type="date" required value={leaveForm.startDate} onChange={e => setLeaveForm(f => ({ ...f, startDate: e.target.value }))} />
+      {/* Leave Modal */}
+      <AnimatePresence>
+        {showLeaveModal && (
+          <Modal title="Apply for Leave" onClose={() => setShowLeaveModal(false)}>
+            <form onSubmit={handleApplyLeave} className="space-y-4">
+              <Field label="Leave Type" required>
+                <Select value={leaveForm.type} onChange={e => setLeaveForm(f => ({ ...f, type: e.target.value }))}>
+                  <option>Casual</option><option>Sick</option><option>Annual</option><option>Maternity</option>
+                </Select>
               </Field>
-              <Field label="End Date" required>
-                <Input type="date" required value={leaveForm.endDate} onChange={e => setLeaveForm(f => ({ ...f, endDate: e.target.value }))} />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Start Date" required><Input type="date" required value={leaveForm.startDate} onChange={e => setLeaveForm(f => ({ ...f, startDate: e.target.value }))} /></Field>
+                <Field label="End Date" required><Input type="date" required value={leaveForm.endDate} onChange={e => setLeaveForm(f => ({ ...f, endDate: e.target.value }))} /></Field>
+              </div>
+              <Field label="Reason Details" required>
+                <Textarea required value={leaveForm.reason} onChange={e => setLeaveForm(f => ({ ...f, reason: e.target.value }))} placeholder="Reason for leave..." />
               </Field>
-            </div>
-            <Field label="Reason" required>
-              <Textarea required rows="3" value={leaveForm.reason} onChange={e => setLeaveForm(f => ({ ...f, reason: e.target.value }))} placeholder="Briefly describe the reason for your leave..." />
-            </Field>
-            <div className="flex gap-3 pt-1">
-              <Btn type="submit" variant="primary" className="flex-1" disabled={submitting}>{submitting ? 'Submitting...' : 'Submit Application'}</Btn>
-              <Btn type="button" variant="ghost" className="flex-1" onClick={() => setShowLeaveModal(false)}>Cancel</Btn>
-            </div>
-          </form>
-        </Modal>
-      )}
+              <Btn type="submit" disabled={submitting} className="w-full">Submit request</Btn>
+            </form>
+          </Modal>
+        )}
+      </AnimatePresence>
 
-      {/* ── IT Support Ticket Modal ───────────────────────────────────────────── */}
-      {showTicketModal && (
-        <Modal
-          title="Raise IT Support Ticket"
-          subtitle="The IT team will review and respond to your request"
-          onClose={() => setShowTicketModal(false)}
-        >
-          <form onSubmit={handleRaiseTicket} className="space-y-4">
-            <Field label="Issue Category" required>
-              <Select value={ticketForm.category} onChange={e => setTicketForm(f => ({ ...f, category: e.target.value }))}>
-                {['Password Reset', 'Account Lock', 'Technical', 'General'].map(c => (
-                  <option key={c}>{c}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Subject" required>
-              <Input required value={ticketForm.subject} onChange={e => setTicketForm(f => ({ ...f, subject: e.target.value }))} placeholder="Brief summary of the issue..." />
-            </Field>
-            <Field label="Description">
-              <Textarea rows="3" value={ticketForm.description} onChange={e => setTicketForm(f => ({ ...f, description: e.target.value }))} placeholder="Provide any additional details that may help resolve this faster..." />
-            </Field>
-            <div className="flex gap-3 pt-1">
-              <Btn type="submit" variant="primary" className="flex-1" disabled={submitting}>{submitting ? 'Raising...' : 'Raise Ticket'}</Btn>
-              <Btn type="button" variant="ghost" className="flex-1" onClick={() => setShowTicketModal(false)}>Cancel</Btn>
-            </div>
-          </form>
-        </Modal>
-      )}
+      {/* Support Modal */}
+      <AnimatePresence>
+        {showTicketModal && (
+          <Modal title="Raise Support Ticket" onClose={() => setShowTicketModal(false)}>
+            <form onSubmit={handleRaiseTicket} className="space-y-4">
+              <Field label="Category" required>
+                <Select value={ticketForm.category} onChange={e => setTicketForm(f => ({ ...f, category: e.target.value }))}>
+                  <option>General</option><option>Hardware</option><option>Software</option><option>Access Request</option>
+                </Select>
+              </Field>
+              <Field label="Subject Summary" required><Input required value={ticketForm.subject} onChange={e => setTicketForm(f => ({ ...f, subject: e.target.value }))} /></Field>
+              <Field label="Details Description">
+                <Textarea value={ticketForm.description} onChange={e => setTicketForm(f => ({ ...f, description: e.target.value }))} placeholder="Explain the issue..." />
+              </Field>
+              <Btn type="submit" disabled={submitting} className="w-full">Submit ticket</Btn>
+            </form>
+          </Modal>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

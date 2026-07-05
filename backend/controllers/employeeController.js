@@ -3,6 +3,7 @@ const Employee = require('../models/Employee');
 const User = require('../models/User');
 const Role = require('../models/Role');
 const AuditLog = require('../models/AuditLog');
+const Request = require('../models/Request');
 const { sendWelcomeEmail } = require('../utils/emailService');
 
 // Utility to generate random passwords meeting complexity rules (BR-02 and BR-03)
@@ -187,40 +188,108 @@ const getEmployeeById = async (req, res) => {
 const updateEmployee = async (req, res) => {
   try {
     const { id } = req.params;
-    const { email } = req.body;
-
     const employeeToUpdate = await Employee.findById(id);
     if (!employeeToUpdate) {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    if (email && email !== employeeToUpdate.email) {
-      // Check if email already exists in User or Employee (excluding current employee)
-      const existingUser = await User.findOne({ email, employeeRef: { $ne: id } });
-      const existingEmployee = await Employee.findOne({ email, _id: { $ne: id } });
+    // 1. Instant update if only updating profilePhoto
+    const keys = Object.keys(req.body);
+    if (keys.length === 1 && keys[0] === 'profilePhoto') {
+      const employee = await Employee.findByIdAndUpdate(id, req.body, { new: true });
+      return res.json({ message: 'Profile photo updated successfully', employee });
+    }
+
+    // 2. Super Admin directly commits changes
+    if (req.user.role?.name === 'Super Admin') {
+      const { email } = req.body;
+      if (email && email !== employeeToUpdate.email) {
+        const existingUser = await User.findOne({ email, employeeRef: { $ne: id } });
+        const existingEmployee = await Employee.findOne({ email, _id: { $ne: id } });
+        if (existingUser || existingEmployee) {
+          return res.status(400).json({ error: 'Email already exists' });
+        }
+        if (employeeToUpdate.userRef) {
+          await User.findByIdAndUpdate(employeeToUpdate.userRef, { email });
+        }
+      }
+      const employee = await Employee.findByIdAndUpdate(id, req.body, { new: true });
+      await AuditLog.create({
+        action: 'EMPLOYEE_UPDATED',
+        userRef: req.user._id,
+        targetUserRef: employee.userRef,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        details: 'Super Admin updated employee profile directly'
+      });
+      return res.json({ message: 'Employee updated successfully', employee });
+    }
+
+    // 3. Create centralized Request for regular profiles
+    let requestType = 'Profile Edit Request';
+    if (req.body.department && req.body.department !== employeeToUpdate.department) {
+      requestType = 'Department Transfer';
+    } else if (req.body.reportingManager && req.body.reportingManager !== String(employeeToUpdate.reportingManager)) {
+      requestType = 'Manager Change';
+    } else if (req.body.salary && Number(req.body.salary) !== employeeToUpdate.salary) {
+      requestType = 'Salary Revision';
+    } else if (req.body.designation && req.body.designation !== employeeToUpdate.designation) {
+      requestType = 'Employee Promotion';
+    }
+
+    const previousValues = {};
+    const newValues = {};
+
+    for (const key of keys) {
+      if (req.body[key] !== undefined) {
+        previousValues[key] = employeeToUpdate[key];
+        newValues[key] = req.body[key];
+      }
+    }
+
+    if (newValues.email && newValues.email !== employeeToUpdate.email) {
+      const existingUser = await User.findOne({ email: newValues.email, employeeRef: { $ne: id } });
+      const existingEmployee = await Employee.findOne({ email: newValues.email, _id: { $ne: id } });
       if (existingUser || existingEmployee) {
         return res.status(400).json({ error: 'Email already exists' });
       }
-
-      // Update associated User email as well to keep them in sync
-      if (employeeToUpdate.userRef) {
-        await User.findByIdAndUpdate(employeeToUpdate.userRef, { email });
-      }
     }
-    
-    // For simplicity, just updating fields directly. In enterprise, restrict certain fields based on role.
-    const employee = await Employee.findByIdAndUpdate(id, req.body, { new: true });
+
+    const request = new Request({
+      requestType,
+      requester: req.user._id,
+      targetUser: employeeToUpdate.userRef,
+      organization: req.user.organization,
+      priority: requestType === 'Profile Edit Request' ? 'Medium' : 'High',
+      previousValues,
+      newValues,
+      remarks: `Submitted profile updates for ${employeeToUpdate.firstName} ${employeeToUpdate.lastName}`,
+      timeline: [{
+        status: 'Pending',
+        actor: req.user._id,
+        remarks: 'Request submitted for review.'
+      }]
+    });
+
+    await request.save();
 
     await AuditLog.create({
       action: 'EMPLOYEE_UPDATED',
       userRef: req.user._id,
-      targetUserRef: employee.userRef,
+      targetUserRef: employeeToUpdate.userRef,
       ipAddress: req.ip,
-      userAgent: req.headers['user-agent']
+      userAgent: req.headers['user-agent'],
+      details: `Profile change request submitted: Request ID ${request._id}`
     });
 
-    res.json({ message: 'Employee updated successfully', employee });
+    res.json({
+      message: 'Profile update request has been submitted for administrative approval.',
+      requestPending: true,
+      request
+    });
+
   } catch (error) {
+    console.error('Update Employee Error:', error);
     res.status(500).json({ error: 'Server error updating employee' });
   }
 };

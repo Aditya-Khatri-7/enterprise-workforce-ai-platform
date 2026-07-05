@@ -51,9 +51,9 @@ const createUser = async (req, res) => {
       }
     } else if (req.user.role.name === 'Organization Admin') {
       targetOrgId = req.user.organization;
-      const allowedRoles = ['HR Manager', 'Finance', 'IT Administrator', 'Manager', 'Team Lead'];
+      const allowedRoles = ['HR Manager', 'Finance', 'IT Administrator', 'Manager', 'Team Lead', 'Auditor'];
       if (!allowedRoles.includes(roleName)) {
-        return res.status(403).json({ error: 'Forbidden. Organization Admin can only create HR Manager, Finance Executive, IT Administrator, Department Manager, or Team Lead.' });
+        return res.status(403).json({ error: 'Forbidden. Organization Admin can only create HR Manager, Finance Executive, IT Administrator, Department Manager, Team Lead, or Auditor.' });
       }
     } else {
       return res.status(403).json({ error: 'Forbidden. Unauthorized to create users.' });
@@ -155,6 +155,7 @@ const toggleUserStatus = async (req, res) => {
     }
 
     user.isActive = isActive;
+    user.status = isActive ? 'Active' : 'Inactive';
     await user.save();
 
     await AuditLog.create({
@@ -186,6 +187,8 @@ const unlockUser = async (req, res) => {
     }
 
     user.isLocked = false;
+    user.status = 'Active';
+    user.isActive = true;
     user.failedLoginAttempts = 0;
     await user.save();
 

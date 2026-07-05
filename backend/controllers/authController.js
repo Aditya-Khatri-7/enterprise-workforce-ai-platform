@@ -114,14 +114,6 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    if (user.isLocked) {
-      return res.status(403).json({ error: 'Account is locked. Please contact Admin' });
-    }
-
-    if (!user.isActive) {
-      return res.status(403).json({ error: 'Account is inactive' });
-    }
-
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
@@ -139,6 +131,10 @@ const login = async (req, res) => {
       });
 
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    if (user.isLocked) {
+      return res.status(403).json({ error: 'Account is locked. Please contact Admin' });
     }
 
     // Reset failed attempts

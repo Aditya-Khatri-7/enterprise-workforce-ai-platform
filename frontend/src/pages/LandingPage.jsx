@@ -6,6 +6,7 @@ import {
   ArrowRight, Activity, Globe, HardDrive, Compass, Layers, 
   CheckCircle2, Sparkles, Server, Zap
 } from 'lucide-react';
+import BootOverlay from '../components/boot/BootOverlay';
 
 // Self-contained Animated Count-up component
 const AnimatedCounter = ({ value, duration = 1.8 }) => {
@@ -56,6 +57,7 @@ const LandingPage = () => {
   const [bootLogs, setBootLogs] = useState([]);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [bootProgress, setBootProgress] = useState(0);
+  const [showLaunchBoot, setShowLaunchBoot] = useState(false);
 
   // Live Dashboard State variables
   const [barHeights, setBarHeights] = useState([60, 45, 80, 50, 75, 95, 40, 65, 85, 70, 90, 100]);
@@ -204,31 +206,35 @@ const LandingPage = () => {
             key="boot"
             exit={{ opacity: 0, scale: 0.98, filter: "blur(5px)" }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 z-50 font-mono text-sm"
+            className="fixed inset-0 bg-royal-gradient flex flex-col items-center justify-center p-6 z-50 font-mono text-sm overflow-hidden"
           >
-            <div className="w-full max-w-lg bg-slate-900/60 border border-slate-800 rounded-xl p-6 shadow-2xl backdrop-blur-2xl relative overflow-hidden">
-              <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
+            {/* Dynamic decorative backdrop auroras */}
+            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-cyan-500/10 blur-[150px] pointer-events-none" />
+            <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-purple-500/10 blur-[150px] pointer-events-none" />
+            
+            <div className="w-full max-w-lg glass-card border border-indigo-500/30 rounded-2xl p-6 shadow-glow-indigo backdrop-blur-3xl relative overflow-hidden">
+              <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-500/80 to-transparent animate-pulse" />
               
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <div className="flex items-center justify-between border-b border-indigo-500/20 pb-3 mb-4">
                 <div className="flex space-x-1.5">
                   <div className="h-3 w-3 rounded-full bg-red-500/60" />
                   <div className="h-3 w-3 rounded-full bg-yellow-500/60" />
                   <div className="h-3 w-3 rounded-full bg-emerald-500/60" />
                 </div>
-                <span className="text-xs text-slate-500">kernel_bootstrap.sh</span>
+                <span className="text-xs text-indigo-400 font-bold tracking-wider">kernel_bootstrap.sh</span>
               </div>
-
+ 
               {/* Progress Bar */}
-              <div className="w-full bg-slate-950 border border-slate-850 h-2 rounded-full mb-5 overflow-hidden">
+              <div className="w-full bg-slate-900/60 border border-indigo-500/20 h-2.5 rounded-full mb-5 overflow-hidden">
                 <motion.div 
-                  className="h-full bg-gradient-to-r from-indigo-500 to-purple-600"
+                  className="h-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-purple-600"
                   animate={{ width: `${bootProgress}%` }}
                   transition={{ duration: 0.3 }}
                 />
               </div>
-
+ 
               {/* Log Lines */}
-              <div className="space-y-2 h-44 overflow-y-auto pr-1 text-slate-350">
+              <div className="space-y-2 h-44 overflow-y-auto pr-1 text-slate-300">
                 {bootLogs.map((log, index) => (
                   <motion.div
                     key={index}
@@ -237,15 +243,15 @@ const LandingPage = () => {
                     transition={{ duration: 0.2 }}
                     className="flex items-start space-x-2"
                   >
-                    <span className="text-indigo-500 select-none">&gt;</span>
-                    <span className={index === bootLogs.length - 1 ? "text-indigo-300 font-bold" : ""}>{log}</span>
+                    <span className="text-cyan-400 select-none font-bold">&gt;</span>
+                    <span className={index === bootLogs.length - 1 ? "text-cyan-300 font-bold" : ""}>{log}</span>
                   </motion.div>
                 ))}
               </div>
-
-              <div className="mt-4 flex justify-between items-center text-xs text-slate-500 pt-3 border-t border-slate-800/60">
+ 
+              <div className="mt-4 flex justify-between items-center text-xs text-indigo-300/60 pt-3 border-t border-indigo-500/10">
                 <div className="flex items-center space-x-2">
-                  <Activity className="h-3.5 w-3.5 text-emerald-500 animate-pulse" />
+                  <Activity className="h-3.5 w-3.5 text-cyan-400 animate-pulse" />
                   <span>Cores: Active</span>
                 </div>
                 <span>Sec: SSL/TLS Enabled</span>
@@ -262,7 +268,7 @@ const LandingPage = () => {
             className="relative"
           >
             {/* Header / Navbar */}
-            <header className="sticky top-0 bg-slate-950/80 backdrop-blur-md border-b border-slate-900/60 z-40 px-6 py-4">
+            <header className="sticky top-0 bg-white/70 dark:bg-[#0B1023]/70 backdrop-blur-xl border-b border-indigo-500/10 z-40 px-6 py-4">
               <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <motion.div 
                   initial={{ opacity: 0, x: -20 }}
@@ -270,10 +276,10 @@ const LandingPage = () => {
                   transition={{ duration: 0.6 }}
                   className="flex items-center space-x-3 group cursor-pointer"
                 >
-                  <div className="h-9 w-9 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform duration-300">
+                  <div className="h-9 w-9 bg-gradient-to-tr from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform duration-300">
                     <Cpu className="h-4.5 w-4.5 text-white" />
                   </div>
-                  <span className="text-lg font-bold tracking-wider uppercase text-white">
+                  <span className="text-lg font-black tracking-wider uppercase text-gray-900 dark:text-white">
                     Workforce OS
                   </span>
                 </motion.div>
@@ -284,18 +290,18 @@ const LandingPage = () => {
                   className="flex items-center space-x-4"
                 >
                   <motion.button 
-                    whileHover={{ scale: 1.03, backgroundColor: "rgba(255,255,255,0.05)" }}
+                    whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => navigate('/login')}
-                    className="px-4 py-2 border border-slate-800 hover:border-slate-700 bg-slate-900/30 text-slate-350 hover:text-white rounded-md text-sm font-medium transition-all duration-300"
+                    className="px-5 py-2.5 border border-indigo-500/20 dark:border-indigo-400/20 bg-white/20 dark:bg-[#1A1F3C]/30 text-gray-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-white rounded-xl text-sm font-bold transition-all duration-300"
                   >
                     Sign In
                   </motion.button>
                   <motion.button 
-                    whileHover={{ scale: 1.03, boxShadow: "0 0 25px rgba(99, 102, 241, 0.4)" }}
+                    whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => navigate('/login')}
-                    className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md text-sm font-medium shadow-lg shadow-indigo-600/10 transition-all duration-300 flex items-center space-x-2"
+                    onClick={() => setShowLaunchBoot(true)}
+                    className="px-5 py-2.5 btn-premium-gradient text-white rounded-xl text-sm font-bold shadow-lg transition-all duration-300 flex items-center space-x-2"
                   >
                     <span>Launch Portal</span>
                     <ArrowRight className="h-4 w-4" />
@@ -370,7 +376,7 @@ const LandingPage = () => {
                   <motion.button 
                     whileHover={{ scale: 1.03, boxShadow: "0 0 35px rgba(99, 102, 241, 0.45)" }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => navigate('/login')}
+                    onClick={() => setShowLaunchBoot(true)}
                     className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg text-base font-semibold transition-all duration-300 flex items-center justify-center space-x-3 group relative overflow-hidden"
                   >
                     <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -733,11 +739,11 @@ const LandingPage = () => {
                 <p className="max-w-md mx-auto text-slate-400 text-sm sm:text-base leading-relaxed">
                   Connect to your organization secure access node now. Initializing takes less than a second.
                 </p>
-                <div className="pt-4 flex justify-center">
+                 <div className="pt-4 flex justify-center">
                   <motion.button 
                     whileHover={{ scale: 1.03, boxShadow: "0 0 35px rgba(99, 102, 241, 0.45)" }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => navigate('/login')}
+                    onClick={() => setShowLaunchBoot(true)}
                     className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg text-base font-semibold shadow-2xl shadow-indigo-600/20 transition-all duration-300 flex items-center space-x-3 group relative overflow-hidden"
                   >
                     <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -759,6 +765,12 @@ const LandingPage = () => {
               </div>
             </footer>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showLaunchBoot && (
+          <BootOverlay onClose={() => setShowLaunchBoot(false)} />
         )}
       </AnimatePresence>
     </div>
