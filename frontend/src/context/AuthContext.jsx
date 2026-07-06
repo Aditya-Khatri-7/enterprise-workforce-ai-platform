@@ -41,6 +41,8 @@ export const AuthProvider = ({ children }) => {
 
 
   const logout = async () => {
+    localStorage.removeItem('ewap_demo_mode');
+    localStorage.removeItem('ewap_demo_role');
     await api.post('/auth/logout');
     setUser(null);
     window.location.href = '/login';

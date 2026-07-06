@@ -6,12 +6,14 @@ import ReCAPTCHA from 'react-google-recaptcha';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, Cpu, ShieldCheck, Activity } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
+import { DemoContext } from '../context/DemoContext';
 
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
 const Login = () => {
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm();
   const { login, user } = useContext(AuthContext);
+  const { clearDemo } = useContext(DemoContext);
   const navigate = useNavigate();
   const location = useLocation();
   const recaptchaRef = useRef(null);
@@ -57,6 +59,7 @@ const Login = () => {
     }
 
     try {
+      if (clearDemo) clearDemo();
       await login({ ...data, recaptchaToken });
       toast.success('Logged in successfully!');
       navigate(from, { replace: true });
