@@ -13,7 +13,7 @@ api.interceptors.request.use(
   (config) => {
     if (localStorage.getItem('ewap_demo_mode') === 'true') {
       config.adapter = async (cfg) => {
-        const mockResponse = getMockData(cfg.url, cfg.method, cfg.data);
+        const mockResponse = await getMockData(cfg.url, cfg.method, cfg.data);
         return {
           data: mockResponse,
           status: 200,

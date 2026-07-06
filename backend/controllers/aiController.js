@@ -3,6 +3,17 @@ const Employee = require('../models/Employee');
 const LeaveRequest = require('../models/LeaveRequest');
 const Candidate = require('../models/Candidate');
 const SupportRequest = require('../models/SupportRequest');
+const Task = require('../models/Task');
+
+// Safe global fetch wrapper
+const performFetch = async (url, options) => {
+  if (typeof fetch !== 'undefined') {
+    return fetch(url, options);
+  }
+  // Fallback for older node versions using dynamic import
+  const nodeFetch = (await import('node-fetch')).default;
+  return nodeFetch(url, options);
+};
 
 const handleChat = async (req, res) => {
   try {
@@ -13,115 +24,72 @@ const handleChat = async (req, res) => {
     const employeeId = req.user.employeeRef;
     const queryLower = prompt.toLowerCase();
 
-    let contextData = '';
-    let responseText = '';
+    // 1. Gather all database records for contextual analysis
+    const [employees, tasks, leaves, tickets, candidates, policies] = await Promise.all([
+      Employee.find({ organization: orgId }),
+      Task.find({ organization: orgId }).populate('assignedTo', 'firstName lastName'),
+      LeaveRequest.find({ organization: orgId }).populate('employee', 'firstName lastName'),
+      SupportRequest.find({ organization: orgId }).populate('employee', 'firstName lastName'),
+      Candidate.find({ organization: orgId }),
+      Policy.find({ organization: orgId })
+    ]);
 
-    // 1. Gather context from local database models based on keywords
-    if (queryLower.includes('policy') || queryLower.includes('guideline') || queryLower.includes('rules')) {
-      const policies = await Policy.find({ organization: orgId });
-      if (policies.length > 0) {
-        contextData += 'Policies:\n' + policies.map(p => `Category: ${p.category}, Title: ${p.title}, Content: ${p.content}`).join('\n') + '\n';
-      } else {
-        contextData += 'No policies defined yet.\n';
-      }
+    // 2. Build system context string
+    const systemPrompt = `You are a personalized AI Operations Assistant for EWAP (Enterprise Workforce AI Platform).
+You have access to the real-time database context of the user's organization.
+Here is the current state of the organization:
+
+### Employees:
+${employees.map(e => `- Name: ${e.firstName} ${e.lastName}, Dept: ${e.department}, Designation: ${e.designation}, Status: ${e.status}`).join('\n')}
+
+### Assigned Tasks:
+${tasks.map(t => `- Title: ${t.title}, Assignee: ${t.assignedTo ? `${t.assignedTo.firstName} ${t.assignedTo.lastName}` : 'Unassigned'}, Status: ${t.status}, Due: ${t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A'}`).join('\n')}
+
+### Leave Requests:
+${leaves.map(l => `- Employee: ${l.employee ? `${l.employee.firstName} ${l.employee.lastName}` : 'N/A'}, Type: ${l.leaveType || l.type}, Reason: ${l.reason}, Status: ${l.status}, Dates: ${l.startDate ? new Date(l.startDate).toLocaleDateString() : 'N/A'} to ${l.endDate ? new Date(l.endDate).toLocaleDateString() : 'N/A'}`).join('\n')}
+
+### Support Tickets:
+${tickets.map(t => `- Subject: ${t.subject || t.title}, Category: ${t.category}, Priority: ${t.priority}, Status: ${t.status}, Description: ${t.description}`).join('\n')}
+
+### Job Candidates:
+${candidates.map(c => `- Candidate: ${c.candidateName || c.name}, Status: ${c.status}`).join('\n')}
+
+### Company Policies:
+${policies.map(p => `- Title: ${p.title}, Category: ${p.category}`).join('\n')}
+
+Using this context, answer the user's question. 
+If the user asks who is doing what, summarize their tasks. 
+If the user asks for advice on task completion chances, analyze the employee's pending/in-progress tasks, active leave requests, and priority to estimate a realistic probability of completing the work on time. Write your analysis clearly and professionally, including actionable operational advice.
+
+Keep your response concise, well-structured in markdown format, and highly professional.
+
+User Question: ${prompt}`;
+
+    // 3. Make real call to Google Gemini API
+    const API_KEY = process.env.GEMINI_API_KEY;
+    if (!API_KEY) {
+      return res.status(500).json({ error: 'Google Gemini API key is missing on the server. Please set GEMINI_API_KEY in your backend .env file.' });
+    }
+    
+    try {
+      const response = await performFetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: systemPrompt }] }]
+        })
+      });
+
+      const data = await response.json();
+      const answer = data.candidates?.[0]?.content?.parts?.[0]?.text || "I was unable to compile the analysis. Please verify your query.";
+      res.json({ answer });
+    } catch (apiError) {
+      console.error('Error calling Gemini API:', apiError);
+      res.status(502).json({ error: 'Failed to retrieve response from Gemini API service.' });
     }
 
-    if (queryLower.includes('leave') || queryLower.includes('vacation') || queryLower.includes('wfh')) {
-      let leaves = [];
-      if (req.user.role?.name === 'Employee' && employeeId) {
-        leaves = await LeaveRequest.find({ employee: employeeId, organization: orgId });
-      } else {
-        leaves = await LeaveRequest.find({ organization: orgId }).populate('employee', 'firstName lastName');
-      }
-      
-      if (leaves.length > 0) {
-        contextData += 'Leave Records:\n' + leaves.map(l => {
-          const empName = l.employee ? `${l.employee.firstName} ${l.employee.lastName}` : 'Self';
-          return `- Employee: ${empName}, Type: ${l.type}, Reason: ${l.reason}, Status: ${l.status}, Period: ${new Date(l.startDate).toLocaleDateString()} to ${new Date(l.endDate).toLocaleDateString()}`;
-        }).join('\n') + '\n';
-      } else {
-        contextData += 'No leave requests recorded.\n';
-      }
-    }
-
-    if (queryLower.includes('candidate') || queryLower.includes('hiring') || queryLower.includes('resume')) {
-      if (['Super Admin', 'Organization Admin', 'HR Manager'].includes(req.user.role?.name)) {
-        const candidates = await Candidate.find({ organization: orgId }).populate('jobPosting', 'title');
-        if (candidates.length > 0) {
-          contextData += 'Job Candidates:\n' + candidates.map(c => `- Candidate: ${c.candidateName}, Job: ${c.jobPosting?.title || 'General'}, Experience: ${c.experience} yrs, Skills: ${c.skills?.join(', ')}, Screening Score: ${c.aiScore}%, Status: ${c.status}`).join('\n') + '\n';
-        } else {
-          contextData += 'No candidate applications found.\n';
-        }
-      } else {
-        contextData += 'Access denied to candidate recruitment records.\n';
-      }
-    }
-
-    if (queryLower.includes('ticket') || queryLower.includes('support') || queryLower.includes('it')) {
-      let tickets = [];
-      if (req.user.role?.name === 'Employee' && employeeId) {
-        tickets = await SupportRequest.find({ employee: employeeId, organization: orgId });
-      } else {
-        tickets = await SupportRequest.find({ organization: orgId }).populate('employee', 'firstName lastName');
-      }
-
-      if (tickets.length > 0) {
-        contextData += 'Support Tickets:\n' + tickets.map(t => {
-          const empName = t.employee ? `${t.employee.firstName} ${t.employee.lastName}` : 'Self';
-          return `- Ticket By: ${empName}, Category: ${t.category}, Subject: ${t.subject}, Details: ${t.description || 'N/A'}, Status: ${t.status}`;
-        }).join('\n') + '\n';
-      } else {
-        contextData += 'No support tickets raised.\n';
-      }
-    }
-
-    if (queryLower.includes('staff') || queryLower.includes('employee') || queryLower.includes('team')) {
-      if (req.user.role?.name !== 'Employee') {
-        const employees = await Employee.find({ organization: orgId });
-        contextData += 'Staff Roster:\n' + employees.map(e => `- ID: ${e.employeeId}, Name: ${e.firstName} ${e.lastName}, Dept: ${e.department}, Designation: ${e.designation}, Status: ${e.status}`).join('\n') + '\n';
-      } else {
-        const selfEmp = await Employee.findOne({ _id: employeeId, organization: orgId });
-        if (selfEmp) {
-          contextData += `Your Profile Info: ID: ${selfEmp.employeeId}, Dept: ${selfEmp.department}, Designation: ${selfEmp.designation}, Status: ${selfEmp.status}\n`;
-        }
-      }
-    }
-
-    // 2. Generate final response based on context if context is gathered, otherwise general help text
-    if (contextData) {
-      // Offline RAG Prompt processing
-      if (queryLower.includes('policy')) {
-        responseText = `Based on the system's policy catalog: \n\n` + 
-                       (contextData.includes('Policies:') 
-                         ? contextData.substring(contextData.indexOf('Policies:')) 
-                         : "I couldn't find any specific company policy documents. Please ensure that the Organization Administrator has uploaded active policies in the Admin Settings.");
-      } else if (queryLower.includes('leave')) {
-        responseText = `Here are the matching Leave Records retrieved from the database:\n\n` + 
-                       contextData.substring(contextData.indexOf('Leave Records:'));
-      } else if (queryLower.includes('candidate') || queryLower.includes('resume')) {
-        responseText = `Here is the current Candidate Recruitment status:\n\n` + 
-                       contextData.substring(contextData.indexOf('Job Candidates:'));
-      } else if (queryLower.includes('ticket') || queryLower.includes('support')) {
-        responseText = `Here is the log of Support Tickets matching your query:\n\n` + 
-                       contextData.substring(contextData.indexOf('Support Tickets:'));
-      } else {
-        responseText = `Retrieved context data:\n\n${contextData}\nHow else can I assist you with this info?`;
-      }
-    } else {
-      // General helpful fallback prompts matching common workforce queries
-      if (queryLower.includes('hello') || queryLower.includes('hi') || queryLower.includes('hey')) {
-        responseText = `Hello! I am your AI Operations Assistant. How can I help you manage workforce tasks today? You can ask me about company policies, leave records, recruitment pipelines, support tickets, or employee details.`;
-      } else {
-        responseText = `I couldn't retrieve any direct context from the database for your query. 
-Try asking me something like:
-- "What are our company policies?"
-- "Show me our team leaves / casual leaves"
-- "List our job candidates and their screening status"
-- "Are there any open support tickets?"`;
-      }
-    }
-
-    res.json({ answer: responseText });
   } catch (error) {
     console.error('AI Assistant Error:', error);
     res.status(500).json({ error: 'Server error in AI Operations Assistant' });

@@ -122,7 +122,7 @@ function initializeData() {
   isInitialized = true;
 }
 
-export function getMockData(url, method, requestData) {
+export async function getMockData(url, method, requestData) {
   initializeData();
 
   // Route handlers matching our API endpoints
@@ -130,25 +130,58 @@ export function getMockData(url, method, requestData) {
     let prompt = '';
     try {
       const data = typeof requestData === 'string' ? JSON.parse(requestData) : requestData;
-      prompt = (data?.prompt || '').toLowerCase();
+      prompt = data?.prompt || '';
     } catch (e) {
-      prompt = (requestData || '').toLowerCase();
+      prompt = requestData || '';
     }
-    let answer = '';
-    if (prompt.includes('policy') || prompt.includes('guideline') || prompt.includes('rules')) {
-      answer = `TechNova Global Policies Context:\n- Casual Leave policy allows up to 14 days per year.\n- Sick Leave requires medical documentation if extending beyond 3 consecutive days.\n- Annual leave must be requested 2 weeks in advance.`;
-    } else if (prompt.includes('leave') || prompt.includes('vacation') || prompt.includes('wfh')) {
-      answer = `Retrieved Leave Records (In-Memory):\n- Riya Sharma: Sick Leave (Pending) from 2026-07-06 to 2026-07-08\n- Amit Verma: Earned Leave (Pending) from 2026-07-10 to 2026-07-12`;
-    } else if (prompt.includes('ticket') || prompt.includes('support') || prompt.includes('it')) {
-      answer = `Active Support Tickets:\n- TCK_881: Sarah Jenkins (Hardware) - Priority: High - Status: Open\n- TCK_882: Arjun Mehta (Software) - Priority: Medium - Status: In Progress\n- TCK_885: Karan Patel (Software) - Priority: High - Status: Open`;
-    } else if (prompt.includes('candidate') || prompt.includes('hiring') || prompt.includes('resume')) {
-      answer = `Active Job Candidates:\n- Sophia Loren (applied for Senior AI Research Engineer) - Status: Interviewing\n- Jack Daniels (applied for Senior AI Research Engineer) - Status: Applied`;
-    } else if (prompt.includes('hello') || prompt.includes('hi') || prompt.includes('hey')) {
-      answer = `Hello! I am your AI Operations Assistant. How can I help you manage workforce tasks today? You can ask me about company policies, leave records, recruitment pipelines, support tickets, or employee details.`;
-    } else {
-      answer = `I am your AI Operations Assistant. Try asking me about "company policies", "active leaves", "open support tickets", or "job candidates".`;
+
+    try {
+      // Build a detailed local database context prompt
+      const systemPrompt = `You are a personalized AI Operations Assistant for EWAP (Enterprise Workforce AI Platform).
+You have access to the real-time mock database context of the user's organization.
+Here is the current state of the organization:
+
+### Employees:
+${employees.map(e => `- Name: ${e.firstName} ${e.lastName}, Dept: ${e.department}, Designation: ${e.designation}, Status: ${e.status}`).join('\n')}
+
+### Sprint Tasks:
+${sprintTasks.map(t => `- Title: ${t.title}, Assignee: ${t.assignee}, Status: ${t.status}, Priority: ${t.priority}, Due: ${t.dueDate}`).join('\n')}
+
+### Leaves:
+${leaves.map(l => `- Leave Type: ${l.leaveType || l.type}, Dates: ${l.startDate} to ${l.endDate}, Status: ${l.status}, Reason: ${l.reason}`).join('\n')}
+
+### Tickets:
+${tickets.map(t => `- Subject: ${t.title || t.subject}, Category: ${t.category}, Priority: ${t.priority}, Status: ${t.status}, Description: ${t.description}`).join('\n')}
+
+Using this context, answer the user's question. 
+If the user asks who is doing what, summarize their tasks. 
+If the user asks for advice on task completion chances, analyze the employee's pending/in-progress tasks, active leave requests, and priority to estimate a realistic probability of completing the work on time. Write your analysis clearly and professionally, including actionable operational advice.
+
+Keep your response concise, well-structured in markdown format, and highly professional.
+
+User Question: ${prompt}`;
+
+      const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!API_KEY) {
+        return { answer: "Google Gemini API key is missing. Please configure VITE_GEMINI_API_KEY in your frontend .env file." };
+      }
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: systemPrompt }] }]
+        })
+      });
+
+      const data = await response.json();
+      const answer = data.candidates?.[0]?.content?.parts?.[0]?.text || "I was unable to analyze the data. Please try again.";
+      return { answer };
+    } catch (err) {
+      console.error("Gemini API Error in mock adapter:", err);
+      return { answer: "Failed to connect to Gemini API. Please ensure your key is valid and active." };
     }
-    return { answer };
   }
 
   if (url.includes('/auth/me')) {
