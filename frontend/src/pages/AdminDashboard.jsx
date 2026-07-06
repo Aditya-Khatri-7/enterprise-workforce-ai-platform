@@ -75,9 +75,52 @@ const LocalModal = ({ title, onClose, children }) => (
 // 1. SUPER ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 const SuperAdminDashboard = () => {
+  const { isDemoMode } = useContext(DemoContext);
+  const [employees, setEmployees] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(!isDemoMode);
+
+  useEffect(() => {
+    if (isDemoMode) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchRealData = async () => {
+      try {
+        setLoading(true);
+        const [empRes, deptRes, orgRes, reqRes, auditRes, userRes] = await Promise.all([
+          api.get('/employees').catch(() => ({ data: [] })),
+          api.get('/departments').catch(() => ({ data: [] })),
+          api.get('/organizations').catch(() => ({ data: [] })),
+          api.get('/requests').catch(() => ({ data: [] })),
+          api.get('/audit').catch(() => ({ data: [] })),
+          api.get('/users').catch(() => ({ data: [] }))
+        ]);
+        setEmployees(empRes.data || []);
+        setDepartments(deptRes.data || []);
+        setOrganizations(orgRes.data || []);
+        setRequests(reqRes.data || []);
+        setAuditLogs(auditRes.data || []);
+        setUsers(userRes.data || []);
+      } catch (err) {
+        console.error('Error fetching admin dashboard real data:', err);
+        toast.error('Failed to load real database metrics.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRealData();
+  }, [isDemoMode]);
+
   const roleColors = ['#A855F7', '#3B82F6', '#14B8A6', '#F97316', '#06B6D4', '#EAB308', '#EF4444', '#64748B'];
   
-  const roleDistribution = [
+  const roleDistribution = isDemoMode ? [
     { name: 'Super Admin', value: 3 },
     { name: 'Org Admin', value: 12 },
     { name: 'HR Manager', value: 24 },
@@ -86,9 +129,19 @@ const SuperAdminDashboard = () => {
     { name: 'Employee', value: 120 },
     { name: 'Finance', value: 8 },
     { name: 'IT Admin', value: 5 }
-  ];
+  ] : (() => {
+    const counts = {};
+    users.forEach(u => {
+      const roleName = u.role?.name || u.role || 'Employee';
+      counts[roleName] = (counts[roleName] || 0) + 1;
+    });
+    if (Object.keys(counts).length === 0) {
+      return [{ name: 'No Users', value: 1 }];
+    }
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  })();
 
-  const recentAudits = [
+  const recentAudits = isDemoMode ? [
     { time: '12:04:12', user: 'super_admin', event: 'Rotated global SSL API secrets', status: 'success' },
     { time: '11:45:00', user: 'finance_lead', event: 'Initiated monthly payroll dispatch', status: 'success' },
     { time: '11:32:18', user: 'hr_manager', event: 'Created employee file [EMP_884]', status: 'success' },
@@ -99,15 +152,38 @@ const SuperAdminDashboard = () => {
     { time: '09:55:00', user: 'system', event: 'Triggered DB replica shard replication', status: 'success' },
     { time: '09:30:15', user: 'it_admin', event: 'Reset password for Sneakers_Lead', status: 'success' },
     { time: '09:00:00', user: 'system', event: 'Performed automatic daily health checklist', status: 'success' }
-  ];
+  ] : auditLogs.slice(0, 10).map(a => ({
+    time: a.createdAt ? new Date(a.createdAt).toLocaleTimeString() : 'N/A',
+    user: typeof a.userId === 'object' ? `${a.userId?.firstName || ''} ${a.userId?.lastName || ''}`.trim() || a.userId?.username : a.userId || 'system',
+    event: a.action,
+    status: 'success'
+  }));
 
-  const departmentBreakdown = [
+  const departmentBreakdown = isDemoMode ? [
     { name: 'Engineering', headcount: 85, manager: 'Arjun Mehta', projects: 8 },
     { name: 'Finance', headcount: 14, manager: 'Sneha Gupta', projects: 3 },
     { name: 'Human Resources', headcount: 12, manager: 'Riya Sharma', projects: 2 },
     { name: 'Operations', headcount: 45, manager: 'Amit Verma', projects: 3 },
     { name: 'Information Technology', headcount: 18, manager: 'Marcus Vane', projects: 2 }
-  ];
+  ] : departments.map(d => {
+    const deptEmployees = employees.filter(e => e.department?.toLowerCase() === d.name?.toLowerCase());
+    const managerEmp = deptEmployees.find(e => e.designation?.toLowerCase().includes('manager')) || deptEmployees[0];
+    return {
+      name: d.name,
+      headcount: deptEmployees.length,
+      manager: managerEmp ? `${managerEmp.firstName} ${managerEmp.lastName}` : 'N/A',
+      projects: 0
+    };
+  });
+
+  if (loading) {
+    return (
+      <div className="flex h-96 items-center justify-center space-x-2">
+        <Activity className="h-6 w-6 text-purple-500 animate-spin" />
+        <span className="text-sm font-bold text-slate-500 dark:text-slate-400">Loading actual database metrics...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 text-slate-800 dark:text-white">
@@ -127,10 +203,10 @@ const SuperAdminDashboard = () => {
 
       {/* Grid KPI Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Employees" value="247" colorAccent="purple" icon={Users} desc="Org-wide Headcount" />
-        <StatCard label="Departments" value="12" colorAccent="purple" icon={Layers} desc="Across 4 Locations" />
-        <StatCard label="Active Projects" value="18" colorAccent="purple" icon={Activity} desc="In Active Sprint" />
-        <StatCard label="Open Support Tickets" value="34" colorAccent="purple" icon={ShieldAlert} desc="IT / HR Pipelines" />
+        <StatCard label="Total Employees" value={isDemoMode ? "247" : String(employees.length)} colorAccent="purple" icon={Users} desc="Org-wide Headcount" />
+        <StatCard label="Departments" value={isDemoMode ? "12" : String(departments.length)} colorAccent="purple" icon={Layers} desc="Across 4 Locations" />
+        <StatCard label={isDemoMode ? "Active Projects" : "Total Organizations"} value={isDemoMode ? "18" : String(organizations.length)} colorAccent="purple" icon={Activity} desc={isDemoMode ? "In Active Sprint" : "Active Registrations"} />
+        <StatCard label={isDemoMode ? "Open Support Tickets" : "Pending Workflow Requests"} value={isDemoMode ? "34" : String(requests.filter(r => r.status === 'Pending').length)} colorAccent="purple" icon={ShieldAlert} desc={isDemoMode ? "IT / HR Pipelines" : "Requires Supervision"} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -205,7 +281,7 @@ const SuperAdminDashboard = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mt-4 text-[10px] text-slate-600 dark:text-slate-300 border-t border-slate-100 dark:border-[#1F2647] pt-4">
+          <div className="grid grid-cols-2 gap-2 mt-4 text-[10px] text-slate-600 dark:text-slate-350 border-t border-slate-100 dark:border-[#1F2647] pt-4">
             {roleDistribution.map((r, i) => (
               <div key={i} className="flex items-center gap-1.5 font-mono">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: roleColors[i % roleColors.length] }} />
