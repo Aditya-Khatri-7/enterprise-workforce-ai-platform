@@ -265,6 +265,21 @@ const Login = () => {
               </div>
             </form>
 
+            <div className="relative flex py-2 items-center">
+              <div className="flex-grow border-t border-indigo-500/10 dark:border-indigo-500/20"></div>
+              <span className="flex-shrink mx-4 text-gray-400 text-xs font-bold uppercase tracking-wider">Or</span>
+              <div className="flex-grow border-t border-indigo-500/10 dark:border-indigo-500/20"></div>
+            </div>
+
+            <div>
+              <Link 
+                to="/demo"
+                className="group relative flex w-full justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 dark:bg-cyan-500/10 hover:bg-indigo-500/20 dark:hover:bg-cyan-500/20 py-3.5 px-4 text-sm font-bold text-indigo-700 dark:text-cyan-400 transition-all duration-300 shadow-sm"
+              >
+                ⚡ Launch Showcase / Demo Mode
+              </Link>
+            </div>
+
             {/* Back Button */}
             <div className="text-center text-xs mt-4">
               <Link to="/" className="text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-white transition-colors font-bold">
