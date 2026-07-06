@@ -9,7 +9,14 @@ const payrollSchema = new mongoose.Schema({
   month: { type: String, required: true }, // e.g. "January"
   year: { type: Number, required: true },
   status: { type: String, enum: ['Pending', 'Approved', 'Processed'], default: 'Pending' },
-  organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true }
+  organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
+  salaryHold: {
+    isOnHold: { type: Boolean, default: false },
+    heldBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    heldAt: { type: Date },
+    holdReason: { type: String },
+    releasedAt: { type: Date }
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Payroll', payrollSchema);

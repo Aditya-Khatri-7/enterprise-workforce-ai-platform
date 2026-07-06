@@ -12,7 +12,7 @@ import BootStatusBar from '../components/boot/BootStatusBar';
 export default function AIWelcomePage() {
   const [showHub, setShowHub] = useState(false);
   const [showTour, setShowTour] = useState(false);
-  const { text, isDone } = useAIIntro(() => {
+  const { text, isDone, isSpeaking } = useAIIntro(() => {
     // Typing complete callback, wait briefly then show controls
     setTimeout(() => {
       setShowHub(true);
@@ -31,6 +31,11 @@ export default function AIWelcomePage() {
       <div className="absolute inset-0 bg-grid-anim pointer-events-none opacity-20" />
       <div className="absolute inset-0 noise-overlay pointer-events-none opacity-[0.012]" />
 
+      {/* Holographic AI Brain centered in the background behind content */}
+      <div className="absolute inset-0 pointer-events-none z-0 opacity-45 sm:opacity-55">
+        <AIOrb isSpeaking={isSpeaking} />
+      </div>
+
       {/* Top Welcome Title Header */}
       <div className="w-full max-w-6xl mx-auto z-10 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -45,7 +50,6 @@ export default function AIWelcomePage() {
         
         {/* Core AI Section */}
         <div className="w-full flex flex-col items-center space-y-4">
-          <AIOrb />
           <AIConversation text={text} isDone={isDone} />
         </div>
 

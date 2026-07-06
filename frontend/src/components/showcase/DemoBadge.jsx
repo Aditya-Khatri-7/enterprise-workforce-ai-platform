@@ -9,10 +9,13 @@ import {
 } from 'lucide-react';
 import { soundManager } from '../../utils/soundManager';
 
+import { DemoContext } from '../../context/DemoContext';
+
 export default function DemoBadge() {
   const { setUser } = useContext(AuthContext);
+  const { demoRole } = useContext(DemoContext);
   const navigate = useNavigate();
-  const activeRole = localStorage.getItem('ewap_demo_role') || 'Super Admin';
+  const activeRole = demoRole || 'Super Admin';
 
   const [showConsole, setShowConsole] = useState(false);
   const [cpuVal, setCpuVal] = useState(12);

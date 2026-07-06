@@ -9,7 +9,13 @@ import {
   User, 
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Briefcase,
+  History,
+  FileText,
+  Star,
+  ShieldAlert,
+  ClipboardList
 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
@@ -19,6 +25,8 @@ import api from '../services/api';
 import DemoBadge from '../components/showcase/DemoBadge';
 import AIExplainer from '../components/showcase/AIExplainer';
 import GuidedTour from '../components/showcase/GuidedTour';
+import { io } from 'socket.io-client';
+import { toast } from 'react-toastify';
 
 // ─── Futuristic Multi-layered Gradient Logo ──────────────────────────────────
 const FuturisticLogo = ({ className = "h-6 w-6" }) => (
@@ -52,8 +60,8 @@ const DashboardLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  const activeRole = isDemoMode ? demoRole : user?.role;
-  const isAdmin = ['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Auditor', 'Finance', 'Team Lead', 'Manager'].includes(activeRole);
+  const activeRole = isDemoMode ? demoRole : (user?.role?.name || user?.role || '');
+  const isAdmin = ['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Auditor', 'Finance', 'Team Lead', 'Manager', 'Department Manager'].includes(activeRole);
 
   const fetchNotifs = async () => {
     try {
@@ -64,9 +72,31 @@ const DashboardLayout = () => {
 
   useEffect(() => {
     fetchNotifs();
-    const interval = setInterval(fetchNotifs, 10000);
-    return () => clearInterval(interval);
-  }, []);
+
+    // Establish Socket.IO Connection
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    const socket = io(`http://${hostname}:3000`, {
+      withCredentials: true
+    });
+
+    if (user?._id) {
+      socket.emit('join', user._id);
+      console.log(`Joined Socket.IO Room for user: ${user._id}`);
+    }
+
+    socket.on('notification', (newNotif) => {
+      console.log('Real-time notification arrived:', newNotif);
+      setNotifications((prev) => [newNotif, ...prev]);
+      toast.info(`🔔 ${newNotif.title}: ${newNotif.message}`);
+    });
+
+    const interval = setInterval(fetchNotifs, 15000); // Polling fallback
+
+    return () => {
+      clearInterval(interval);
+      socket.disconnect();
+    };
+  }, [user]);
 
   const markAllAsRead = async () => {
     try {
@@ -114,67 +144,164 @@ const DashboardLayout = () => {
         </div>
         
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-          {isAdmin ? (
-            <>
-              <Link 
-                to="/admin/dashboard" 
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname === '/admin/dashboard' ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-450 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
-                title={isCollapsed && !isHovered ? "Dashboard Overview" : ""}
-              >
-                <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
-                {(!isCollapsed || isHovered) && <span>Dashboard Overview</span>}
-              </Link>
-              {['Organization Admin', 'HR Manager', 'IT Administrator', 'Auditor'].includes(activeRole) && (
-                <Link 
-                  to="/admin/employees" 
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/employees') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
-                  title={isCollapsed && !isHovered ? "Employee Records" : ""}
-                >
-                  <Users className="h-5 w-5 flex-shrink-0" />
-                  {(!isCollapsed || isHovered) && <span>Employee Records</span>}
-                </Link>
-              )}
-              {['Super Admin', 'Auditor', 'Organization Admin', 'IT Administrator'].includes(activeRole) && (
-                <Link 
-                  to="/admin/audit" 
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/audit') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
-                  title={isCollapsed && !isHovered ? "Audit logs" : ""}
-                >
-                  <ShieldCheck className="h-5 w-5 flex-shrink-0" />
-                  {(!isCollapsed || isHovered) && <span>Audit logs</span>}
-                </Link>
-              )}
-              {['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Finance', 'Auditor'].includes(activeRole) && (
-                <Link 
-                  to="/admin/requests" 
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/requests') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
-                  title={isCollapsed && !isHovered ? "Workflow Requests" : ""}
-                >
-                  <GitPullRequest className="h-5 w-5 flex-shrink-0" />
-                  {(!isCollapsed || isHovered) && <span>Workflow Requests</span>}
-                </Link>
-              )}
-            </>
+          {/* Main Dashboard - applicable to all */}
+          {['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Auditor', 'Finance', 'Team Lead', 'Manager', 'Department Manager'].includes(activeRole) ? (
+            <Link 
+              to="/admin/dashboard" 
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname === '/admin/dashboard' ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-450 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
+              title={isCollapsed && !isHovered ? "Dashboard Overview" : ""}
+            >
+              <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+              {(!isCollapsed || isHovered) && <span>Dashboard Overview</span>}
+            </Link>
           ) : (
+            <Link 
+              to="/employee/dashboard" 
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname === '/employee/dashboard' ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
+              title={isCollapsed && !isHovered ? "My Dashboard" : ""}
+            >
+              <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+              {(!isCollapsed || isHovered) && <span>My Dashboard</span>}
+            </Link>
+          )}
+
+          {/* Org Admins, HR Managers, IT, Auditors */}
+          {['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Auditor'].includes(activeRole) && (
             <>
               <Link 
-                to="/employee/dashboard" 
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname === '/employee/dashboard' ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
-                title={isCollapsed && !isHovered ? "My Dashboard" : ""}
+                to="/admin/employees" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/employees') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Employee Records" : ""}
               >
-                <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
-                {(!isCollapsed || isHovered) && <span>My Dashboard</span>}
+                <Users className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Employee Records</span>}
               </Link>
               <Link 
-                to="/profile" 
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname === '/profile' ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
-                title={isCollapsed && !isHovered ? "My Profile" : ""}
+                to="/admin/audit" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/audit') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Audit logs" : ""}
               >
-                <User className="h-5 w-5 flex-shrink-0" />
-                {(!isCollapsed || isHovered) && <span>My Profile</span>}
+                <ShieldCheck className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Audit logs</span>}
+              </Link>
+              <Link 
+                to="/admin/requests" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/requests') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-305 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Workflow Requests" : ""}
+              >
+                <GitPullRequest className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Workflow Requests</span>}
               </Link>
             </>
           )}
+
+          {/* Department Managers (Manager / Department Manager) */}
+          {['Manager', 'Department Manager'].includes(activeRole) && (
+            <>
+              <Link 
+                to="/admin/team-leads" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/team-leads') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Supervised Team Leads" : ""}
+              >
+                <Users className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Team Leads Overview</span>}
+              </Link>
+              <Link 
+                to="/admin/project-requests" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/project-requests') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Project Modifications" : ""}
+              >
+                <GitPullRequest className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Project Requests</span>}
+              </Link>
+              <Link 
+                to="/admin/team-requests" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/team-requests') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Team Leadership Change Polls" : ""}
+              >
+                <ClipboardList className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Team Lead Swaps</span>}
+              </Link>
+              <Link 
+                to="/admin/grievances" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/grievances') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-305 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Employee Grievances" : ""}
+              >
+                <ShieldAlert className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Grievance Desk</span>}
+              </Link>
+            </>
+          )}
+
+          {/* Team Leads */}
+          {activeRole === 'Team Lead' && (
+            <>
+              <Link 
+                to="/admin/my-team" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/my-team') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-305 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "My Supervised Team" : ""}
+              >
+                <Users className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>My Team & Tasks</span>}
+              </Link>
+              <Link 
+                to="/admin/team-lead-requests" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/team-lead-requests') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-305 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Task Objections & Requests" : ""}
+              >
+                <GitPullRequest className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Team Requests</span>}
+              </Link>
+              <Link 
+                to="/admin/employee-ratings" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/employee-ratings') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-305 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Review & Rate Team Members" : ""}
+              >
+                <Star className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Team Reviews</span>}
+              </Link>
+            </>
+          )}
+
+          {/* Employees */}
+          {['Employee', 'Manager', 'Department Manager', 'Team Lead'].includes(activeRole) && (
+            <>
+              <Link 
+                to="/employee/projects" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/employee/projects') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-305 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "My Assigned Projects" : ""}
+              >
+                <Briefcase className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Team Projects</span>}
+              </Link>
+              <Link 
+                to="/employee/history" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/employee/history') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-305 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Project & Task History Logs" : ""}
+              >
+                <History className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>History Logs</span>}
+              </Link>
+              <Link 
+                to="/employee/company-info" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/employee/company-info') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-350 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "My Resume & Corporate Ratings" : ""}
+              >
+                <FileText className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Resume & Ratings</span>}
+              </Link>
+            </>
+          )}
+
+          {/* Profile link for all */}
+          <Link 
+            to="/profile" 
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname === '/profile' ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-305 dark:hover:text-white'}`}
+            title={isCollapsed && !isHovered ? "My Profile" : ""}
+          >
+            <User className="h-5 w-5 flex-shrink-0" />
+            {(!isCollapsed || isHovered) && <span>My Profile</span>}
+          </Link>
         </nav>
         
         <div className="p-4 border-t border-indigo-500/10 dark:border-indigo-500/20">

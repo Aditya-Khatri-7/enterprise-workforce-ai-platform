@@ -11,7 +11,7 @@ const RoleRoute = ({ allowedRoles }) => {
     return null; // The ProtectedRoute handles the loader
   }
 
-  const activeRole = isDemoMode ? demoRole : user?.role;
+  const activeRole = isDemoMode ? demoRole : (user?.role?.name || user?.role);
 
   // Super Admin overrides all role checks on the frontend too
   if (activeRole === 'Super Admin') {

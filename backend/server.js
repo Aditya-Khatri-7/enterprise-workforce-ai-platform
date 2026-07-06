@@ -26,6 +26,7 @@ const designationRoutes = require('./routes/designation');
 const policyRoutes = require('./routes/policy');
 const workShiftRoutes = require('./routes/workShift');
 const enterpriseRoutes = require('./routes/enterprise');
+const officeLocationRoutes = require('./routes/officeLocation');
 const recruitmentRoutes = require('./routes/recruitment');
 const assetRoutes = require('./routes/asset');
 const attendanceRoutes = require('./routes/attendance');
@@ -37,7 +38,7 @@ const PORT = process.env.PORT || 3000;
 
 // Security Middlewares
 app.use(helmet());
-const allowedOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+const allowedOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://127.0.0.1:5174', 'http://127.0.0.1:5175'];
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -76,18 +77,32 @@ app.use('/api/designations', designationRoutes);
 app.use('/api/policies', policyRoutes);
 app.use('/api/workshifts', workShiftRoutes);
 app.use('/api/enterprise', enterpriseRoutes);
+app.use('/api/office-locations', officeLocationRoutes);
 app.use('/api/recruitment', recruitmentRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/payroll', require('./routes/payroll'));
+app.use('/api/teams', require('./routes/team'));
+app.use('/api/progress-reports', require('./routes/progressReport'));
+app.use('/api/objections', require('./routes/objection'));
+app.use('/api/projects', require('./routes/project'));
+app.use('/api/proposals', require('./routes/proposal'));
 app.use('/api/requests', require('./routes/request'));
+app.use('/api/grievances', require('./routes/grievance'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Internal Server Error' });
 });
+
+const http = require('http');
+const { initSocket } = require('./utils/socket');
+
+const server = http.createServer(app);
+initSocket(server);
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
@@ -98,6 +113,6 @@ mongoose.connect(process.env.MONGO_URI)
     console.error('MongoDB connection error (continuing server boot):', error);
   });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });

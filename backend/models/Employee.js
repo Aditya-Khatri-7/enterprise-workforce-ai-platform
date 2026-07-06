@@ -25,7 +25,14 @@ const employeeSchema = new mongoose.Schema({
   profileImage: { type: String },
   emergencyContact: { type: String, trim: true },
   skills: [{ type: String, trim: true }],
-  userRef: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  userRef: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  resumeText: { type: String },
+  resumeFileName: { type: String },
+  resumeFileBase64: { type: String },
+  ratings: {
+    teamLeadRating: { type: Number, default: 0 },
+    managerRating: { type: Number, default: 0 }
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Employee', employeeSchema);

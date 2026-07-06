@@ -25,6 +25,18 @@ import SuperAdminRequestCenter from './pages/SuperAdminRequestCenter';
 import AIWelcomePage from './pages/AIWelcomePage';
 import DemoPlaceholderPage from './pages/DemoPlaceholderPage';
 import CreateOrgPlaceholderPage from './pages/CreateOrgPlaceholderPage';
+import DeactivatedPage from './pages/DeactivatedPage';
+
+import ManagerTeamLeads from './pages/ManagerTeamLeads';
+import ManagerProjectRequests from './pages/ManagerProjectRequests';
+import ManagerTeamRequests from './pages/ManagerTeamRequests';
+import ManagerGrievances from './pages/ManagerGrievances';
+import TeamLeadMyTeam from './pages/TeamLeadMyTeam';
+import TeamLeadRequests from './pages/TeamLeadRequests';
+import TeamLeadRatings from './pages/TeamLeadRatings';
+import EmployeeProjects from './pages/EmployeeProjects';
+import EmployeeHistory from './pages/EmployeeHistory';
+import EmployeeCompanyInfo from './pages/EmployeeCompanyInfo';
 
 import PremiumBackground from './components/PremiumBackground';
 import CustomCursor from './components/CustomCursor';
@@ -33,7 +45,7 @@ import CustomCursor from './components/CustomCursor';
 const DashboardRouter = () => {
   const { user } = useContext(AuthContext);
   const { isDemoMode, demoRole } = useContext(DemoContext);
-  const activeRole = isDemoMode ? demoRole : user?.role;
+  const activeRole = isDemoMode ? demoRole : (user?.role?.name || user?.role);
   const adminRoles = ['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Manager', 'Team Lead', 'Finance', 'Auditor'];
   if (adminRoles.includes(activeRole)) {
     return <Navigate to="/admin/dashboard" replace />;
@@ -63,6 +75,7 @@ function App() {
                 <Route path="/create-organization" element={<CreateOrgPlaceholderPage />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/unauthorized" element={<Unauthorized />} />
+                <Route path="/account-suspended" element={<DeactivatedPage />} />
 
                 {/* Protected Routes */}
                 <Route element={<ProtectedRoute />}>
@@ -71,7 +84,7 @@ function App() {
                   
                   <Route element={<DashboardLayout />}>
                     {/* Admin & Manager & Lead & Finance Routes */}
-                    <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Manager', 'Team Lead', 'Finance', 'Auditor']} />}>
+                    <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Manager', 'Department Manager', 'Team Lead', 'Finance', 'Auditor']} />}>
                       <Route path="/admin/dashboard" element={<AdminDashboard />} />
                       <Route path="/admin/requests" element={<SuperAdminRequestCenter />} />
                     </Route>
@@ -80,9 +93,27 @@ function App() {
                       <Route path="/admin/audit" element={<AuditLogPage />} />
                     </Route>
 
+                    {/* Department Manager Dedicated Routes */}
+                    <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'Manager', 'Department Manager']} />}>
+                      <Route path="/admin/team-leads" element={<ManagerTeamLeads />} />
+                      <Route path="/admin/project-requests" element={<ManagerProjectRequests />} />
+                      <Route path="/admin/team-requests" element={<ManagerTeamRequests />} />
+                      <Route path="/admin/grievances" element={<ManagerGrievances />} />
+                    </Route>
+
+                    {/* Team Lead Dedicated Routes */}
+                    <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'Team Lead']} />}>
+                      <Route path="/admin/my-team" element={<TeamLeadMyTeam />} />
+                      <Route path="/admin/team-lead-requests" element={<TeamLeadRequests />} />
+                      <Route path="/admin/employee-ratings" element={<TeamLeadRatings />} />
+                    </Route>
+
                     {/* Employee Routes */}
-                    <Route element={<RoleRoute allowedRoles={['Employee', 'Manager', 'Team Lead']} />}>
+                    <Route element={<RoleRoute allowedRoles={['Employee', 'Manager', 'Department Manager', 'Team Lead']} />}>
                       <Route path="/employee/dashboard" element={<EmployeeDashboard />} />
+                      <Route path="/employee/projects" element={<EmployeeProjects />} />
+                      <Route path="/employee/history" element={<EmployeeHistory />} />
+                      <Route path="/employee/company-info" element={<EmployeeCompanyInfo />} />
                     </Route>
                     
                     <Route path="/profile" element={<Profile />} />

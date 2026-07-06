@@ -51,9 +51,26 @@ const userSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Active', 'Inactive', 'Suspended', 'Locked', 'Pending', 'Archived'],
+    enum: ['Active', 'Inactive', 'Suspended', 'Locked', 'Pending', 'Archived', 'Deactivation_Requested', 'Deleted'],
     default: 'Active'
+  },
+  orgId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization'
+  },
+  suspendedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  suspendReason: {
+    type: String
+  },
+  reactivationRequest: {
+    requestedAt: { type: Date },
+    reason: { type: String },
+    status: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' }
   }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
+

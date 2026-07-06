@@ -4,7 +4,9 @@ const User = require('../models/User');
 const Role = require('../models/Role');
 const AuditLog = require('../models/AuditLog');
 const Request = require('../models/Request');
+const Department = require('../models/Department');
 const { sendWelcomeEmail } = require('../utils/emailService');
+const { createNotification, writeAuditLog } = require('../utils/notification');
 
 // Utility to generate random passwords meeting complexity rules (BR-02 and BR-03)
 const generatePassword = () => {
@@ -200,8 +202,8 @@ const updateEmployee = async (req, res) => {
       return res.json({ message: 'Profile photo updated successfully', employee });
     }
 
-    // 2. Super Admin directly commits changes
-    if (req.user.role?.name === 'Super Admin') {
+    // 2. Super Admin, Org Admin, and HR Manager directly commits changes
+    if (['Super Admin', 'Organization Admin', 'HR Manager'].includes(req.user.role?.name)) {
       const { email } = req.body;
       if (email && email !== employeeToUpdate.email) {
         const existingUser = await User.findOne({ email, employeeRef: { $ne: id } });
@@ -214,13 +216,12 @@ const updateEmployee = async (req, res) => {
         }
       }
       const employee = await Employee.findByIdAndUpdate(id, req.body, { new: true });
-      await AuditLog.create({
+      await writeAuditLog({
+        userId: req.user._id,
         action: 'EMPLOYEE_UPDATED',
-        userRef: req.user._id,
-        targetUserRef: employee.userRef,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'],
-        details: 'Super Admin updated employee profile directly'
+        targetUserId: employee.userRef,
+        details: `${req.user.role.name} updated employee profile directly`,
+        req
       });
       return res.json({ message: 'Employee updated successfully', employee });
     }
@@ -323,10 +324,152 @@ const deleteEmployee = async (req, res) => {
   }
 };
 
+const changeEmployeeDepartment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { departmentId, managerId } = req.body;
+
+    const employee = await Employee.findById(id);
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+
+    let departmentName = employee.department;
+    if (departmentId) {
+      const mongoose = require('mongoose');
+      let dept = null;
+      if (mongoose.isValidObjectId(departmentId)) {
+        dept = await Department.findById(departmentId);
+      } else {
+        dept = await Department.findOne({ name: departmentId });
+      }
+      if (dept) {
+        departmentName = dept.name;
+      } else {
+        departmentName = departmentId;
+      }
+    }
+
+    employee.department = departmentName;
+
+    if (managerId) {
+      employee.reportingManager = managerId;
+    } else if (managerId === null || managerId === 'null') {
+      employee.reportingManager = null;
+    }
+
+    await employee.save();
+
+    await writeAuditLog({
+      userId: req.user._id,
+      action: 'EMPLOYEE_DEPARTMENT_REASSIGNED',
+      targetUserId: employee.userRef,
+      details: { department: departmentName, managerId },
+      req
+    });
+
+    if (employee.userRef) {
+      await createNotification({
+        recipient: employee.userRef,
+        title: 'Department Reassigned',
+        message: `You have been reassigned to the ${departmentName} department reporting to a new manager.`,
+        organization: req.user.organization
+      });
+    }
+
+    res.json({ message: 'Employee department and manager reassigned successfully.', employee });
+  } catch (error) {
+    console.error('Change Employee Department Error:', error);
+    res.status(500).json({ error: 'Server error reassigning department' });
+  }
+};
+
+const updateEmployeeResume = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { resumeText, resumeFileName, resumeFileBase64 } = req.body;
+
+    const employee = await Employee.findById(id);
+    if (!employee) return res.status(404).json({ error: 'Employee not found' });
+
+    const isSelf = employee.userRef && employee.userRef.toString() === req.user._id.toString();
+    const isAdmin = ['Super Admin', 'Organization Admin', 'HR Manager'].includes(req.user.role?.name);
+    
+    if (!isSelf && !isAdmin) {
+      return res.status(403).json({ error: 'You are not authorized to update this resume' });
+    }
+
+    if (resumeText !== undefined) employee.resumeText = resumeText;
+    if (resumeFileName !== undefined) employee.resumeFileName = resumeFileName;
+    if (resumeFileBase64 !== undefined) employee.resumeFileBase64 = resumeFileBase64;
+
+    await employee.save();
+
+    await writeAuditLog({
+      userId: req.user._id,
+      action: 'EMPLOYEE_RESUME_UPDATED',
+      targetUserId: employee.userRef,
+      details: { resumeFileName },
+      req
+    });
+
+    res.json({ message: 'Resume updated successfully', employee });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const rateEmployee = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { teamLeadRating, managerRating } = req.body;
+
+    const employee = await Employee.findById(id);
+    if (!employee) return res.status(404).json({ error: 'Employee not found' });
+
+    if (!employee.ratings) {
+      employee.ratings = { teamLeadRating: 0, managerRating: 0 };
+    }
+
+    const roleName = req.user.role?.name;
+    const isTL = roleName === 'Team Lead';
+    const isManager = ['Manager', 'Department Manager'].includes(roleName);
+    const isAdmin = ['Super Admin', 'Organization Admin', 'HR Manager'].includes(roleName);
+
+    if (!isTL && !isManager && !isAdmin) {
+      return res.status(403).json({ error: 'Only Team Leads or Managers can grade ratings' });
+    }
+
+    if (teamLeadRating !== undefined && (isTL || isAdmin)) {
+      employee.ratings.teamLeadRating = teamLeadRating;
+    }
+    if (managerRating !== undefined && (isManager || isAdmin)) {
+      employee.ratings.managerRating = managerRating;
+    }
+
+    await employee.save();
+
+    await writeAuditLog({
+      userId: req.user._id,
+      action: 'EMPLOYEE_RATING_SUBMITTED',
+      targetUserId: employee.userRef,
+      details: { teamLeadRating, managerRating },
+      req
+    });
+
+    res.json({ message: 'Rating submitted successfully', employee });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   createEmployee,
   getEmployees,
   getEmployeeById,
   updateEmployee,
-  deleteEmployee
+  deleteEmployee,
+  changeEmployeeDepartment,
+  updateEmployeeResume,
+  rateEmployee
 };

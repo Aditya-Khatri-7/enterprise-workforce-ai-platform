@@ -82,6 +82,7 @@ const EmployeeDashboard = () => {
   const [todayLog, setTodayLog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [tasks, setTasks] = useState([]);
 
   // Modal states
   const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -98,14 +99,18 @@ const EmployeeDashboard = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [leaveRes, ticketRes, todayRes] = await Promise.all([
+      const [leaveRes, ticketRes, todayRes, tasksRes] = await Promise.all([
         api.get('/leaves'),
         api.get('/support'),
-        api.get('/attendance/today').catch(() => ({ data: null }))
+        api.get('/attendance/today').catch(() => ({ data: null })),
+        api.get('/enterprise/tasks').catch(() => ({ data: [] }))
       ]);
       setLeaves(leaveRes.data);
       setTickets(ticketRes.data);
       setTodayLog(todayRes.data);
+      if (tasksRes.data && user?.employeeRef) {
+        setTasks(tasksRes.data.filter(t => t.assignedTo?._id === user.employeeRef || t.assignedTo === user.employeeRef));
+      }
     } catch (err) {
       /* silently handle */
     } finally {
@@ -428,7 +433,7 @@ const EmployeeDashboard = () => {
       {/* Tabs */}
       <div>
         <div className="flex gap-2 border-b border-slate-200 dark:border-[#1F2647] bg-slate-50/40 dark:bg-[#151A30]/40 rounded-t-2xl px-4 py-2">
-          {[['overview', 'My Overview'], ['leaves', `My Leaves (${leaves.length})`], ['tickets', `Support tickets (${tickets.length})`]].map(([k, l]) => (
+          {[['overview', 'My Overview'], ['projects', 'My Projects'], ['leaves', `My Leaves (${leaves.length})`], ['tickets', `Support tickets (${tickets.length})`]].map(([k, l]) => (
             <button key={k} onClick={() => setActiveTab(k)} className={`py-2.5 px-4 text-xs font-bold uppercase tracking-wider border-b-2 -mb-px transition-colors ${activeTab === k ? 'border-emerald-555 text-emerald-650 dark:border-emerald-500 dark:text-emerald-450 font-extrabold' : 'border-transparent text-slate-500 dark:text-slate-450 hover:text-slate-900 dark:hover:text-white'}`}>
               {l}
             </button>
@@ -519,9 +524,9 @@ const EmployeeDashboard = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200 font-mono">
                     {tickets.map(t => (
                       <tr key={t._id} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
-                        <td className="py-3 text-emerald-600 dark:text-emerald-455 font-bold">{t.category}</td>
-                        <td className="py-3 text-slate-900 dark:text-white font-bold">{t.subject}</td>
-                        <td className="py-3 text-slate-600 dark:text-slate-350 truncate max-w-xs">{t.description || '—'}</td>
+                        <td className="py-3 text-slate-900 dark:text-white font-bold">{t.category}</td>
+                        <td className="py-3 text-slate-600 dark:text-slate-350">{t.subject}</td>
+                        <td className="py-3 text-slate-600 dark:text-slate-350 truncate max-w-xs">{t.description}</td>
                         <td className="py-3">
                           <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider ${TICKET_BADGE[t.status]}`}>
                             {t.status}
@@ -531,6 +536,62 @@ const EmployeeDashboard = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'projects' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">My Projects & Tasks</h4>
+              </div>
+              
+              <div className="space-y-4">
+                <h5 className="font-black text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-widest border-b border-emerald-500/20 pb-1">Present / Ongoing</h5>
+                {tasks.filter(t => t.status !== 'Completed').length === 0 ? (
+                  <p className="text-xs text-slate-500 italic">No ongoing tasks.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {tasks.filter(t => t.status !== 'Completed').map(t => (
+                      <div key={t._id} className="p-4 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/45 rounded-xl space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white">{t.title}</h4>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">{t.description}</p>
+                          </div>
+                          <span className="px-2 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[9px] uppercase tracking-widest font-black">{t.status}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          Deadline: {t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4 pt-4">
+                <h5 className="font-black text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest border-b border-slate-500/20 pb-1">Previous / Completed</h5>
+                {tasks.filter(t => t.status === 'Completed').length === 0 ? (
+                  <p className="text-xs text-slate-500 italic">No completed tasks.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {tasks.filter(t => t.status === 'Completed').map(t => (
+                      <div key={t._id} className="p-4 border border-slate-200 dark:border-[#1F2647] bg-slate-50/20 dark:bg-[#0E1325]/20 rounded-xl space-y-3 opacity-75 hover:opacity-100 transition-opacity">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white">{t.title}</h4>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">{t.description}</p>
+                          </div>
+                          <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[9px] uppercase tracking-widest font-black">COMPLETED</span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          Deadline: {t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

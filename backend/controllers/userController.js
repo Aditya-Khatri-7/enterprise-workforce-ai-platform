@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Role = require('../models/Role');
 const Employee = require('../models/Employee');
 const AuditLog = require('../models/AuditLog');
+const { createNotification, writeAuditLog } = require('../utils/notification');
 
 const getUsers = async (req, res) => {
   try {
@@ -246,10 +247,345 @@ const resetUserPassword = async (req, res) => {
   }
 };
 
+const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.status = 'Deleted';
+    user.isActive = false;
+    await user.save();
+
+    if (user.employeeRef) {
+      await Employee.findByIdAndUpdate(user.employeeRef, { status: 'Terminated' });
+    }
+
+    await writeAuditLog({
+      userId: req.user._id,
+      action: 'USER_DELETED',
+      targetUserId: user._id,
+      details: `Soft deleted user account: ${user.username}`,
+      req
+    });
+
+    res.json({ message: 'User deleted successfully (soft-delete)' });
+  } catch (error) {
+    console.error('Delete User Error:', error);
+    res.status(500).json({ error: 'Server error deleting user' });
+  }
+};
+
+const deactivateUser = async (req, res) => {
+  try {
+    const id = req.params.id === 'me' ? req.user._id : req.params.id;
+    const { reason } = req.body;
+
+    const targetUser = await User.findById(id).populate('role').populate('employeeRef');
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const requesterRole = req.user.role.name;
+    const targetRole = targetUser.role?.name;
+
+    // Enforce organizational boundary
+    if (requesterRole !== 'Super Admin') {
+      if (targetUser.organization?.toString() !== req.user.organization?.toString()) {
+        return res.status(403).json({ error: 'Forbidden. User belongs to another organization.' });
+      }
+    }
+
+    // Enforce Hierarchy
+    let allowed = false;
+    if (requesterRole === 'Super Admin') {
+      if (targetRole !== 'Super Admin') allowed = true;
+    } else if (requesterRole === 'Organization Admin') {
+      if (targetRole !== 'Super Admin' && targetRole !== 'Organization Admin') allowed = true;
+    } else if (requesterRole === 'HR Manager') {
+      const HRProtected = ['Super Admin', 'Organization Admin', 'HR Manager'];
+      if (!HRProtected.includes(targetRole)) allowed = true;
+    } else if (requesterRole === 'Team Lead') {
+      // Must be an Employee and report to the Team Lead
+      if (targetRole === 'Employee' && targetUser.employeeRef) {
+        const emp = await Employee.findById(targetUser.employeeRef);
+        if (emp && emp.reportingManager?.toString() === req.user.employeeRef?.toString()) {
+          allowed = true;
+        }
+      }
+    }
+
+    if (!allowed) {
+      return res.status(403).json({ error: 'Forbidden. You do not have permission to deactivate this user.' });
+    }
+
+    targetUser.status = 'Suspended';
+    targetUser.isActive = false;
+    targetUser.suspendedBy = req.user._id;
+    targetUser.suspendReason = reason || 'Suspended by supervisor';
+    await targetUser.save();
+
+    // Log the audit
+    await writeAuditLog({
+      userId: req.user._id,
+      action: 'USER_SUSPENDED',
+      targetUserId: targetUser._id,
+      details: { reason: targetUser.suspendReason },
+      req
+    });
+
+    // Notify user
+    await createNotification({
+      recipient: targetUser._id,
+      title: 'Account Suspended',
+      message: `Your account has been suspended by your superior. Reason: ${targetUser.suspendReason}`,
+      organization: targetUser.organization
+    });
+
+    res.json({ message: 'User account suspended successfully', user: targetUser });
+  } catch (error) {
+    console.error('Deactivate User Error:', error);
+    res.status(500).json({ error: 'Server error deactivating user' });
+  }
+};
+
+const requestReactivation = async (req, res) => {
+  try {
+    const id = req.params.id === 'me' ? req.user._id : req.params.id;
+    const { reason } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.reactivationRequest = {
+      requestedAt: new Date(),
+      reason: reason || 'Requested reactivation',
+      status: 'Pending'
+    };
+    user.status = 'Deactivation_Requested'; // updates user status
+    await user.save();
+
+    await writeAuditLog({
+      userId: user._id,
+      action: 'REACTIVATION_REQUESTED',
+      details: { reason },
+      req
+    });
+
+    // Notify superior
+    const role = await Role.findById(user.role);
+    const roleName = role?.name;
+
+    if (roleName === 'Organization Admin') {
+      const superAdminRole = await Role.findOne({ name: 'Super Admin' });
+      if (superAdminRole) {
+        const superAdmins = await User.find({ role: superAdminRole._id });
+        for (const sa of superAdmins) {
+          await createNotification({
+            recipient: sa._id,
+            title: 'Reactivation Request',
+            message: `Org Admin ${user.username} has requested reactivation.`,
+            organization: null
+          });
+        }
+      }
+    } else {
+      const orgAdminRole = await Role.findOne({ name: 'Organization Admin' });
+      const hrRole = await Role.findOne({ name: 'HR Manager' });
+      
+      let recipientRole = orgAdminRole;
+      if (roleName === 'Employee' || roleName === 'Team Lead' || roleName === 'Manager') {
+        recipientRole = hrRole || orgAdminRole;
+      }
+
+      if (recipientRole) {
+        const superiors = await User.find({ role: recipientRole._id, organization: user.organization });
+        for (const sup of superiors) {
+          await createNotification({
+            recipient: sup._id,
+            title: 'Reactivation Request',
+            message: `User ${user.username} (${roleName}) has requested account reactivation.`,
+            organization: user.organization
+          });
+        }
+      }
+    }
+
+    res.json({ message: 'Reactivation request sent. Your manager has been notified.', user });
+  } catch (error) {
+    console.error('Request Reactivation Error:', error);
+    res.status(500).json({ error: 'Server error requesting reactivation' });
+  }
+};
+
+const reviewReactivation = async (req, res) => {
+  try {
+    const id = req.params.id === 'me' ? req.user._id : req.params.id;
+    const { action } = req.body;
+
+    const targetUser = await User.findById(id).populate('role');
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (action === 'Approve') {
+      targetUser.status = 'Active';
+      targetUser.isActive = true;
+      if (targetUser.reactivationRequest) {
+        targetUser.reactivationRequest.status = 'Approved';
+      }
+      targetUser.suspendedBy = undefined;
+      targetUser.suspendReason = undefined;
+      await targetUser.save();
+
+      await writeAuditLog({
+        userId: req.user._id,
+        action: 'REACTIVATION_APPROVED',
+        targetUserId: targetUser._id,
+        details: 'Approved reactivation request',
+        req
+      });
+
+      await createNotification({
+        recipient: targetUser._id,
+        title: 'Account Reactivated',
+        message: 'Your reactivation request has been approved. You can now log in.',
+        organization: targetUser.organization
+      });
+
+      res.json({ message: 'Account reactivated successfully', user: targetUser });
+    } else {
+      targetUser.status = 'Suspended';
+      targetUser.isActive = false;
+      if (targetUser.reactivationRequest) {
+        targetUser.reactivationRequest.status = 'Rejected';
+      }
+      await targetUser.save();
+
+      await writeAuditLog({
+        userId: req.user._id,
+        action: 'REACTIVATION_REJECTED',
+        targetUserId: targetUser._id,
+        details: 'Rejected reactivation request',
+        req
+      });
+
+      await createNotification({
+        recipient: targetUser._id,
+        title: 'Reactivation Rejected',
+        message: 'Your reactivation request has been rejected. Please contact support.',
+        organization: targetUser.organization
+      });
+
+      res.json({ message: 'Reactivation request rejected', user: targetUser });
+    }
+  } catch (error) {
+    console.error('Review Reactivation Error:', error);
+    res.status(500).json({ error: 'Server error reviewing reactivation' });
+  }
+};
+
+const getReactivationStatus = async (req, res) => {
+  try {
+    const id = req.params.id === 'me' ? req.user._id : req.params.id;
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({
+      status: user.status,
+      reactivationRequest: user.reactivationRequest || null
+    });
+  } catch (error) {
+    console.error('Get Reactivation Status Error:', error);
+    res.status(500).json({ error: 'Server error fetching reactivation status' });
+  }
+};
+
+const changeUserRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newRole } = req.body;
+
+    if (!newRole) {
+      return res.status(400).json({ error: 'New role is required' });
+    }
+
+    const targetUser = await User.findById(id).populate('role');
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const requesterRole = req.user.role.name;
+
+    // Enforce organizational boundary
+    if (requesterRole !== 'Super Admin') {
+      if (targetUser.organization?.toString() !== req.user.organization?.toString()) {
+        return res.status(403).json({ error: 'Forbidden. User belongs to another organization.' });
+      }
+    }
+
+    // Role restrictions for HR Manager
+    if (requesterRole === 'HR Manager') {
+      const targetRoleName = targetUser.role?.name;
+      const protectedRoles = ['Super Admin', 'Organization Admin', 'HR Manager'];
+      if (protectedRoles.includes(targetRoleName)) {
+        return res.status(403).json({ error: 'Forbidden. HR Managers cannot change roles of administrators or HR accounts.' });
+      }
+      if (protectedRoles.includes(newRole)) {
+        return res.status(403).json({ error: 'Forbidden. HR Managers cannot assign admin or HR roles.' });
+      }
+    }
+
+    const roleObj = await Role.findOne({ name: newRole });
+    if (!roleObj) {
+      return res.status(400).json({ error: `Role ${newRole} not found in database.` });
+    }
+
+    const oldRoleName = targetUser.role?.name;
+    targetUser.role = roleObj._id;
+    await targetUser.save();
+
+    if (targetUser.employeeRef) {
+      await Employee.findByIdAndUpdate(targetUser.employeeRef, { designation: newRole });
+    }
+
+    await writeAuditLog({
+      userId: req.user._id,
+      action: 'ROLE_UPDATED',
+      targetUserId: targetUser._id,
+      details: `Changed role of user ${targetUser.username} from ${oldRoleName} to ${newRole}`,
+      req
+    });
+
+    await createNotification({
+      recipient: targetUser._id,
+      title: 'Security Role Updated',
+      message: `Your system role has been updated from ${oldRoleName} to ${newRole}.`,
+      organization: targetUser.organization
+    });
+
+    res.json({ message: `User role updated to ${newRole} successfully.`, user: targetUser });
+  } catch (error) {
+    console.error('Change User Role Error:', error);
+    res.status(500).json({ error: 'Server error updating user role' });
+  }
+};
+
 module.exports = {
   getUsers,
   createUser,
   toggleUserStatus,
   unlockUser,
-  resetUserPassword
+  resetUserPassword,
+  deleteUser,
+  deactivateUser,
+  requestReactivation,
+  reviewReactivation,
+  getReactivationStatus,
+  changeUserRole
 };

@@ -53,14 +53,17 @@ const Login = () => {
   };
 
   const onSubmit = async (data) => {
-    if (!recaptchaToken) {
+    const isDev = import.meta.env.MODE === 'development';
+    if (!recaptchaToken && !isDev) {
       setRecaptchaError('Please complete the reCAPTCHA verification.');
       return;
     }
 
+    const token = recaptchaToken || (isDev ? 'dev-dummy-token' : null);
+
     try {
       if (clearDemo) clearDemo();
-      await login({ ...data, recaptchaToken });
+      await login({ ...data, recaptchaToken: token });
       toast.success('Logged in successfully!');
       navigate(from, { replace: true });
     } catch (error) {

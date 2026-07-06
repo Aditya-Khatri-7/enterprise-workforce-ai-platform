@@ -31,7 +31,10 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     const { data } = await api.post('/auth/login', credentials);
-    // Normalize role to be a string for consistent access control checks
+    if (data.user?.status === 'Suspended') {
+      window.location.href = '/account-suspended';
+      return data;
+    }
     setUser({
       ...data.user,
       role: data.user.role?.name || data.user.role

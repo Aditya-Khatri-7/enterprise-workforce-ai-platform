@@ -9,6 +9,7 @@ const LeaveRequest = require('../models/LeaveRequest');
 const SupportRequest = require('../models/SupportRequest');
 const RefreshToken = require('../models/RefreshToken');
 const Otp = require('../models/Otp');
+const { createNotification, writeAuditLog } = require('../utils/notification');
 
 const createOrganization = async (req, res) => {
   try {
@@ -191,6 +192,96 @@ const getOrganizations = async (req, res) => {
   }
 };
 
+const assignAdminToOrg = async (req, res) => {
+  try {
+    const { orgId } = req.params;
+    const { userId } = req.body;
+
+    if (!orgId || !userId) {
+      return res.status(400).json({ error: 'Organization ID and User ID are required' });
+    }
+
+    const org = await Organization.findById(orgId);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const orgAdminRole = await Role.findOne({ name: 'Organization Admin' });
+    if (!orgAdminRole) {
+      return res.status(500).json({ error: 'Organization Admin role not configured in the system' });
+    }
+
+    user.role = orgAdminRole._id;
+    user.organization = org._id;
+    user.orgId = org._id;
+    await user.save();
+
+    // Check if employee record already exists for this user
+    let employee = await Employee.findOne({ userRef: user._id });
+    if (!employee) {
+      let employeeId = 'EMP0001';
+      const lastEmployee = await Employee.findOne().sort({ employeeId: -1 });
+      if (lastEmployee) {
+        const match = lastEmployee.employeeId.match(/EMP(\d+)/);
+        if (match) {
+          const nextNumber = parseInt(match[1], 10) + 1;
+          employeeId = `EMP${String(nextNumber).padStart(4, '0')}`;
+        } else {
+          const count = await Employee.countDocuments();
+          employeeId = `EMP${String(count + 1).padStart(4, '0')}`;
+        }
+      }
+
+      employee = new Employee({
+        employeeId,
+        firstName: user.username,
+        lastName: 'Admin',
+        email: user.email,
+        department: 'Management',
+        designation: 'Organization Admin',
+        joiningDate: new Date(),
+        userRef: user._id
+      });
+      await employee.save();
+
+      user.employeeRef = employee._id;
+      await user.save();
+    } else {
+      // update employee department/designation to match admin role
+      employee.department = 'Management';
+      employee.designation = 'Organization Admin';
+      await employee.save();
+    }
+
+    // Write audit log
+    await writeAuditLog({
+      userId: req.user._id,
+      action: 'ADMIN_ASSIGNED',
+      targetUserId: user._id,
+      details: `Assigned user ${user.username} as Admin of ${org.name}`,
+      req
+    });
+
+    // Send notification
+    await createNotification({
+      recipient: user._id,
+      title: 'Admin Role Assigned',
+      message: `You have been assigned as the Admin of organization ${org.name}.`,
+      organization: org._id
+    });
+
+    res.json({ message: 'Organization Admin assigned successfully', user, employee });
+  } catch (error) {
+    console.error('Assign Admin To Org Error:', error);
+    res.status(500).json({ error: 'Server error assigning admin to organization' });
+  }
+};
+
 const deleteOrganization = async (req, res) => {
   try {
     const { id } = req.params;
@@ -201,41 +292,50 @@ const deleteOrganization = async (req, res) => {
     }
 
     // 1. Find all users associated with this organization
-    const users = await User.find({ organization: id });
+    const users = await User.find({ organization: id }).populate('role');
     const userIds = users.map(u => u._id);
     const userEmails = users.map(u => u.email);
 
-    // 2. Delete all Employees referencing these users
+    // Filter to find non-admin users in the org
+    const nonAdminUsers = users.filter(u => u.role && u.role.name !== 'Organization Admin' && u.role.name !== 'Super Admin');
+    const nonAdminUserIds = nonAdminUsers.map(u => u._id);
+
+    // 2. Check if any non-admin employees exist under it
+    const employeeCount = await Employee.countDocuments({ userRef: { $in: nonAdminUserIds } });
+    if (employeeCount > 0) {
+      return res.status(400).json({ error: 'Cannot delete organization. Employees exist under this organization.' });
+    }
+
+    // 3. Delete all Employees referencing these users
     await Employee.deleteMany({ userRef: { $in: userIds } });
 
-    // 3. Delete Refresh Tokens
+    // 4. Delete Refresh Tokens
     await RefreshToken.deleteMany({ userRef: { $in: userIds } });
 
-    // 4. Delete Otp records
+    // 5. Delete Otp records
     await Otp.deleteMany({ email: { $in: userEmails } });
 
-    // 5. Delete Leave Requests
+    // 6. Delete Leave Requests
     await LeaveRequest.deleteMany({ organization: id });
 
-    // 6. Delete Support Requests
+    // 7. Delete Support Requests
     await SupportRequest.deleteMany({ organization: id });
 
-    // 7. Delete Departments
+    // 8. Delete Departments
     await Department.deleteMany({ organization: id });
 
-    // 8. Delete Users
+    // 9. Delete Users
     await User.deleteMany({ organization: id });
 
-    // 9. Delete the Organization
+    // 10. Delete the Organization
     await Organization.findByIdAndDelete(id);
 
-    // 10. Log the action
-    await AuditLog.create({
+    // 11. Log the action
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'ORGANIZATION_DELETED',
-      userRef: req.user._id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Deleted organization: ${org.name} (${org.organizationId}) and all associated users, employees, departments, and requests.`
+      details: `Deleted organization: ${org.name} (${org.organizationId})`,
+      req
     });
 
     res.json({ message: 'Organization and all associated data deleted successfully' });
@@ -248,6 +348,7 @@ const deleteOrganization = async (req, res) => {
 module.exports = {
   createOrganization,
   assignAdmin,
+  assignAdminToOrg,
   updateOrganizationStatus,
   getOrganizations,
   deleteOrganization

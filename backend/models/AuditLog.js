@@ -3,13 +3,7 @@ const mongoose = require('mongoose');
 const auditLogSchema = new mongoose.Schema({
   action: {
     type: String,
-    required: true,
-    enum: [
-      'LOGIN', 'LOGOUT', 'PASSWORD_CHANGE', 'FAILED_LOGIN', 
-      'EMPLOYEE_CREATED', 'EMPLOYEE_UPDATED', 'EMPLOYEE_ARCHIVED',
-      'ORGANIZATION_CREATED', 'ORGANIZATION_DELETED', 'USER_UNLOCKED', 'USER_PASSWORD_RESET', 
-      'USER_CREATED', 'USER_STATUS_UPDATED'
-    ]
+    required: true
   },
   userRef: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   targetUserRef: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // e.g. the employee being modified

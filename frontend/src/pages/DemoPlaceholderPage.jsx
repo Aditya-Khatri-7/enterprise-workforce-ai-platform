@@ -47,9 +47,9 @@ const ROLES = [
     iconColor: 'text-blue-400'
   },
   {
-    name: 'HR Manager', // Mapping to Manager
+    name: 'Manager', 
     label: 'Department Manager',
-    nameReal: 'HR Manager',
+    nameReal: 'Manager',
     desc: 'Operational unit director. Review attendance charts, coordinate leaves, and supervise team schedules.',
     responsibilities: 'Leaves review, shift logs validation',
     permissions: 'Approvals on Unit scope',

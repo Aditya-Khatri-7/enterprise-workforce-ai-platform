@@ -47,6 +47,10 @@ const processQueue = (error, token = null) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    if (error.response?.data?.code === 'ACCOUNT_SUSPENDED' || (error.response?.status === 403 && error.response?.data?.code === 'ACCOUNT_SUSPENDED')) {
+      window.location.href = '/account-suspended';
+      return Promise.reject(error);
+    }
     const originalRequest = error.config;
 
     // Only attempt refresh on 401 errors, and not on the refresh/login endpoints themselves
