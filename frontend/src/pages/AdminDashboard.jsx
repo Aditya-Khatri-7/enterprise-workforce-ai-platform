@@ -71,9 +71,6 @@ const LocalModal = ({ title, onClose, children }) => (
   </div>
 );
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 1. SUPER ADMIN DASHBOARD
-// ═══════════════════════════════════════════════════════════════════════════════
 const SuperAdminDashboard = () => {
   const { isDemoMode } = useContext(DemoContext);
   const [employees, setEmployees] = useState([]);
@@ -84,39 +81,80 @@ const SuperAdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(!isDemoMode);
 
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newOrgData, setNewOrgData] = useState({ name: '', email: '', address: '', subscriptionPlan: 'Basic' });
+  const [submittingOrg, setSubmittingOrg] = useState(false);
+
+  const fetchRealData = async () => {
+    try {
+      setLoading(true);
+      const [empRes, deptRes, orgRes, reqRes, auditRes, userRes] = await Promise.all([
+        api.get('/employees').catch(() => ({ data: [] })),
+        api.get('/departments').catch(() => ({ data: [] })),
+        api.get('/organizations').catch(() => ({ data: [] })),
+        api.get('/requests').catch(() => ({ data: [] })),
+        api.get('/audit').catch(() => ({ data: [] })),
+        api.get('/users').catch(() => ({ data: [] }))
+      ]);
+      setEmployees(empRes.data || []);
+      setDepartments(deptRes.data || []);
+      setOrganizations(orgRes.data || []);
+      setRequests(reqRes.data || []);
+      setAuditLogs(auditRes.data || []);
+      setUsers(userRes.data || []);
+    } catch (err) {
+      console.error('Error fetching admin dashboard real data:', err);
+      toast.error('Failed to load real database metrics.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isDemoMode) {
       setLoading(false);
       return;
     }
-
-    const fetchRealData = async () => {
-      try {
-        setLoading(true);
-        const [empRes, deptRes, orgRes, reqRes, auditRes, userRes] = await Promise.all([
-          api.get('/employees').catch(() => ({ data: [] })),
-          api.get('/departments').catch(() => ({ data: [] })),
-          api.get('/organizations').catch(() => ({ data: [] })),
-          api.get('/requests').catch(() => ({ data: [] })),
-          api.get('/audit').catch(() => ({ data: [] })),
-          api.get('/users').catch(() => ({ data: [] }))
-        ]);
-        setEmployees(empRes.data || []);
-        setDepartments(deptRes.data || []);
-        setOrganizations(orgRes.data || []);
-        setRequests(reqRes.data || []);
-        setAuditLogs(auditRes.data || []);
-        setUsers(userRes.data || []);
-      } catch (err) {
-        console.error('Error fetching admin dashboard real data:', err);
-        toast.error('Failed to load real database metrics.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchRealData();
   }, [isDemoMode]);
+
+  const handleCreateOrg = async (e) => {
+    e.preventDefault();
+    if (!newOrgData.name || !newOrgData.email) {
+      toast.warning('Organization Name and Contact Email are required.');
+      return;
+    }
+
+    if (isDemoMode) {
+      const mockNewOrg = {
+        organizationId: `ORG${String(organizations.length + 4).padStart(4, '0')}`,
+        name: newOrgData.name,
+        email: newOrgData.email,
+        address: newOrgData.address,
+        subscriptionPlan: newOrgData.subscriptionPlan,
+        status: 'Active'
+      };
+      setOrganizations([...organizations, mockNewOrg]);
+      toast.success('Organization created successfully (Demo Mode)!');
+      setShowCreateModal(false);
+      setNewOrgData({ name: '', email: '', address: '', subscriptionPlan: 'Basic' });
+      return;
+    }
+
+    try {
+      setSubmittingOrg(true);
+      await api.post('/organizations', newOrgData);
+      toast.success('Organization created successfully!');
+      setShowCreateModal(false);
+      setNewOrgData({ name: '', email: '', address: '', subscriptionPlan: 'Basic' });
+      await fetchRealData();
+    } catch (err) {
+      console.error('Create organization failed:', err);
+      toast.error(err.response?.data?.error || 'Failed to create organization.');
+    } finally {
+      setSubmittingOrg(false);
+    }
+  };
 
   const roleColors = ['#A855F7', '#3B82F6', '#14B8A6', '#F97316', '#06B6D4', '#EAB308', '#EF4444', '#64748B'];
   
@@ -140,24 +178,6 @@ const SuperAdminDashboard = () => {
     }
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   })();
-
-  const recentAudits = isDemoMode ? [
-    { time: '12:04:12', user: 'super_admin', event: 'Rotated global SSL API secrets', status: 'success' },
-    { time: '11:45:00', user: 'finance_lead', event: 'Initiated monthly payroll dispatch', status: 'success' },
-    { time: '11:32:18', user: 'hr_manager', event: 'Created employee file [EMP_884]', status: 'success' },
-    { time: '11:15:45', user: 'it_admin', event: 'Assigned asset ASST_889 to Karan Patel', status: 'success' },
-    { time: '10:55:12', user: 'org_admin', event: 'Onboarded department [R&D]', status: 'success' },
-    { time: '10:44:00', user: 'super_admin', event: 'Suspended legacy org node [TechM]', status: 'success' },
-    { time: '10:12:30', user: 'auditor', event: 'Exported security logs [Q2]', status: 'success' },
-    { time: '09:55:00', user: 'system', event: 'Triggered DB replica shard replication', status: 'success' },
-    { time: '09:30:15', user: 'it_admin', event: 'Reset password for Sneakers_Lead', status: 'success' },
-    { time: '09:00:00', user: 'system', event: 'Performed automatic daily health checklist', status: 'success' }
-  ] : auditLogs.slice(0, 10).map(a => ({
-    time: a.createdAt ? new Date(a.createdAt).toLocaleTimeString() : 'N/A',
-    user: typeof a.userId === 'object' ? `${a.userId?.firstName || ''} ${a.userId?.lastName || ''}`.trim() || a.userId?.username : a.userId || 'system',
-    event: a.action,
-    status: 'success'
-  }));
 
   const departmentBreakdown = isDemoMode ? [
     { name: 'Engineering', headcount: 85, manager: 'Arjun Mehta', projects: 8 },
@@ -239,20 +259,71 @@ const SuperAdminDashboard = () => {
             </div>
           </div>
 
-          {/* Recent Audit Log Feed */}
+          {/* Organizations Registry */}
           <div className="glass-card border border-purple-200 dark:border-purple-500/20 rounded-2xl p-5">
-            <h3 className="text-xs font-black text-purple-700 dark:text-purple-400 uppercase tracking-widest mb-4">Core Platform Audit Logs</h3>
-            <div className="space-y-3 font-mono text-[10px] text-slate-600 dark:text-slate-350">
-              {recentAudits.map((a, i) => (
-                <div key={i} className="p-2.5 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/40 rounded-xl flex justify-between items-center">
-                  <div>
-                    <span className="text-purple-750 dark:text-purple-400 font-bold">&gt; {a.time}</span>
-                    <span className="text-slate-800 dark:text-white ml-2">[{a.user}]</span>
-                    <p className="text-slate-700 dark:text-slate-300 mt-0.5">{a.event}</p>
-                  </div>
-                  <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-500/20 uppercase font-black tracking-wider text-[8px]">{a.status}</span>
-                </div>
-              ))}
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xs font-black text-purple-700 dark:text-purple-400 uppercase tracking-widest">
+                Organizations Registry
+              </h3>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowCreateModal(true)}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white btn-premium-gradient flex items-center gap-1 shadow-md cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Create Org</span>
+              </motion.button>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
+                <thead>
+                  <tr className="text-slate-500 dark:text-slate-400 text-left">
+                    <th className="pb-3 font-semibold">ID</th>
+                    <th className="pb-3 font-semibold">Org Name</th>
+                    <th className="pb-3 font-semibold">Contact Email</th>
+                    <th className="pb-3 font-semibold">Plan</th>
+                    <th className="pb-3 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200">
+                  {(isDemoMode ? [
+                    { organizationId: 'ORG0001', name: 'TechNova Global', email: 'contact@technova.com', subscriptionPlan: 'Enterprise', status: 'Active' },
+                    { organizationId: 'ORG0002', name: 'Quantum Leap Labs', email: 'hr@quantumleap.io', subscriptionPlan: 'Premium', status: 'Active' },
+                    { organizationId: 'ORG0003', name: 'Apex Systems', email: 'admin@apex.com', subscriptionPlan: 'Basic', status: 'Suspended' }
+                  ] : organizations).map((o, i) => (
+                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                      <td className="py-3 font-mono font-bold">{o.organizationId}</td>
+                      <td className="py-3 font-bold text-slate-900 dark:text-white">{o.name}</td>
+                      <td className="py-3 font-mono">{o.email}</td>
+                      <td className="py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                          o.subscriptionPlan === 'Enterprise' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 border border-purple-500/30' :
+                          o.subscriptionPlan === 'Premium' ? 'bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border border-cyan-500/30' :
+                          'bg-slate-100 dark:bg-slate-500/20 text-slate-700 dark:text-slate-400 border border-slate-500/30'
+                        }`}>
+                          {o.subscriptionPlan}
+                        </span>
+                      </td>
+                      <td className="py-3">
+                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                          o.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
+                        }`}>
+                          {o.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {(!isDemoMode && organizations.length === 0) && (
+                    <tr>
+                      <td colSpan="5" className="py-8 text-center text-slate-500 dark:text-slate-400">
+                        No organizations found in database. Create one to get started!
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -281,7 +352,7 @@ const SuperAdminDashboard = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mt-4 text-[10px] text-slate-600 dark:text-slate-350 border-t border-slate-100 dark:border-[#1F2647] pt-4">
+          <div className="grid grid-cols-2 gap-2 mt-4 text-[10px] text-slate-650 dark:text-slate-350 border-t border-slate-100 dark:border-[#1F2647] pt-4">
             {roleDistribution.map((r, i) => (
               <div key={i} className="flex items-center gap-1.5 font-mono">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: roleColors[i % roleColors.length] }} />
@@ -291,6 +362,80 @@ const SuperAdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Create Org Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <LocalModal title="Create New Organization" onClose={() => setShowCreateModal(false)}>
+            <form onSubmit={handleCreateOrg} className="space-y-4">
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Organization Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Acme Corp"
+                  value={newOrgData.name}
+                  onChange={(e) => setNewOrgData({ ...newOrgData, name: e.target.value })}
+                  className="w-full text-sm px-4 py-2.5 bg-slate-50 dark:bg-[#0B1023]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-500 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Primary Contact Email</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. admin@acme.com"
+                  value={newOrgData.email}
+                  onChange={(e) => setNewOrgData({ ...newOrgData, email: e.target.value })}
+                  className="w-full text-sm px-4 py-2.5 bg-slate-50 dark:bg-[#0B1023]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-500 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Physical Address (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 123 Main St, New York"
+                  value={newOrgData.address}
+                  onChange={(e) => setNewOrgData({ ...newOrgData, address: e.target.value })}
+                  className="w-full text-sm px-4 py-2.5 bg-slate-50 dark:bg-[#0B1023]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-500 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Subscription Plan</label>
+                <select
+                  value={newOrgData.subscriptionPlan}
+                  onChange={(e) => setNewOrgData({ ...newOrgData, subscriptionPlan: e.target.value })}
+                  className="w-full text-sm px-4 py-2.5 bg-slate-50 dark:bg-[#0B1023]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-500 text-slate-900 dark:text-white"
+                >
+                  <option value="Basic">Basic Plan</option>
+                  <option value="Premium">Premium Plan</option>
+                  <option value="Enterprise">Enterprise Plan</option>
+                </select>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-slate-100 dark:border-indigo-500/15">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingOrg}
+                  className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white btn-premium-gradient rounded-xl disabled:opacity-50"
+                >
+                  {submittingOrg ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </LocalModal>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
