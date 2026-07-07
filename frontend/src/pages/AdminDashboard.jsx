@@ -73,6 +73,7 @@ const LocalModal = ({ title, onClose, children }) => (
 
 const SuperAdminDashboard = () => {
   const { isDemoMode } = useContext(DemoContext);
+  const { user } = useContext(AuthContext);
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [organizations, setOrganizations] = useState([]);
@@ -558,26 +559,32 @@ const SuperAdminDashboard = () => {
                           <td className="py-2.5 text-right">
                             <div className="flex gap-2 justify-end">
                               {u.status !== 'Suspended' ? (
-                                <button
-                                  onClick={() => setSuspendUserTarget(u)}
-                                  className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-lg cursor-pointer"
-                                >
-                                  Suspend
-                                </button>
+                                u._id === user?._id || u.username === user?.username ? (
+                                  <span className="px-2 py-1 text-[10px] text-slate-400 dark:text-slate-500 italic">Self</span>
+                                ) : (
+                                  <button
+                                    onClick={() => setSuspendUserTarget(u)}
+                                    className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-lg cursor-pointer"
+                                  >
+                                    Suspend
+                                  </button>
+                                )
                               ) : (
                                 <button
                                   onClick={() => handleReviewReactivation(u._id, 'Approve')}
-                                  className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-650 dark:text-emerald-400 border border-emerald-500/20 rounded-lg cursor-pointer"
+                                  className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-655 dark:text-emerald-400 border border-emerald-500/20 rounded-lg cursor-pointer"
                                 >
                                   Reactivate
                                 </button>
                               )}
-                              <button
-                                onClick={() => setDeleteUserTarget(u)}
-                                className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 rounded-lg cursor-pointer"
-                              >
-                                Delete
-                              </button>
+                              {u._id !== user?._id && u.username !== user?.username && (
+                                <button
+                                  onClick={() => setDeleteUserTarget(u)}
+                                  className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 rounded-lg cursor-pointer"
+                                >
+                                  Delete
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1249,12 +1256,16 @@ const OrgAdminDashboard = () => {
                             </td>
                             <td className="py-2.5 text-right font-sans">
                               {u.status !== 'Suspended' ? (
-                                <button
-                                  onClick={() => setSuspendUserTarget(u)}
-                                  className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-lg cursor-pointer"
-                                >
-                                  Suspend
-                                </button>
+                                u._id === user?._id || u.username === user?.username ? (
+                                  <span className="px-2 py-1 text-[10px] text-slate-400 dark:text-slate-500 italic">Self</span>
+                                ) : (
+                                  <button
+                                    onClick={() => setSuspendUserTarget(u)}
+                                    className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-lg cursor-pointer"
+                                  >
+                                    Suspend
+                                  </button>
+                                )
                               ) : (
                                 <button
                                   onClick={() => handleReviewReactivation(u._id, 'Approve')}
@@ -2084,12 +2095,16 @@ const HRManagerDashboard = () => {
                                 </button>
                               )}
                               {u.status !== 'Suspended' ? (
-                                <button
-                                  onClick={() => setSuspendUserTarget(u)}
-                                  className="px-2 py-1 text-[9px] font-bold uppercase bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-lg cursor-pointer"
-                                >
-                                  Suspend
-                                </button>
+                                u._id === user?._id || u.username === user?.username ? (
+                                  <span className="px-2 py-1 text-[10px] text-slate-400 dark:text-slate-500 italic">Self</span>
+                                ) : (
+                                  <button
+                                    onClick={() => setSuspendUserTarget(u)}
+                                    className="px-2 py-1 text-[9px] font-bold uppercase bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-lg cursor-pointer"
+                                  >
+                                    Suspend
+                                  </button>
+                                )
                               ) : (
                                 <button
                                   onClick={() => handleReviewReactivation(u._id, 'Approve')}

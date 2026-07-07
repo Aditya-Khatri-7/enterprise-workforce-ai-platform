@@ -208,7 +208,7 @@ const EmployeeManagement = () => {
                           const isProtected = ['Super Admin', 'Organization Admin', 'HR Manager', 'Manager', 'Department Manager'].includes(targetRole) || emp.userRef?._id === user?._id;
                           const isHR = activeRole === 'HR Manager';
 
-                          if (isHR && isProtected) {
+                          if ((isHR && isProtected) || emp.userRef?._id === user?._id || emp.userRef?.username === user?.username) {
                             return <span className="text-slate-400 dark:text-slate-500 italic text-[11px]">Protected Profile</span>;
                           }
 
