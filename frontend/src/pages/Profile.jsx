@@ -123,12 +123,27 @@ const Profile = () => {
 
   const removeSkill = (skill) => setSkills(s => s.filter(x => x !== skill));
 
+  const roleName = user?.role?.name || user?.role || '';
+  const hasEmployeeRef = !!user?.employeeRef;
+  const showSkillsTab = !['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Auditor', 'Finance'].includes(roleName);
+
   // Completeness metric calculations
   const profileFields = [form.firstName, form.lastName, form.mobile, form.address, form.emergencyContact];
-  const completeness = Math.round((profileFields.filter(Boolean).length / profileFields.length) * 100);
+  const completeness = hasEmployeeRef
+    ? Math.round((profileFields.filter(Boolean).length / profileFields.length) * 100)
+    : 100;
 
-  const initials = `${form.firstName?.[0] || ''}${form.lastName?.[0] || ''}`.toUpperCase() || user?.username?.[0]?.toUpperCase() || '?';
-  const roleName = user?.role || '';
+  const initials = hasEmployeeRef
+    ? `${form.firstName?.[0] || ''}${form.lastName?.[0] || ''}`.toUpperCase()
+    : user?.username?.slice(0, 2).toUpperCase() || '?';
+
+  const tabs = [
+    ['personal', 'Personal Detail'],
+    ...(showSkillsTab ? [['skills', 'Skills list']] : []),
+    ['password', 'Change Password'],
+    ['prefs', 'Preferences'],
+    ['sessions', 'Active Sessions']
+  ];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -150,7 +165,7 @@ const Profile = () => {
           {initials}
         </div>
         <div className="flex-1 space-y-1.5 text-center sm:text-left">
-          <h2 className="text-xl font-black">{form.firstName || user?.username} {form.lastName}</h2>
+          <h2 className="text-xl font-black">{hasEmployeeRef ? `${form.firstName || user?.username} ${form.lastName}` : user?.username}</h2>
           <p className="text-xs text-indigo-200">{emp.designation || roleName} · {emp.department || 'Staff Portal'}</p>
           <div className="flex flex-wrap gap-2 justify-center sm:justify-start pt-1.5">
             {emp.employeeId && <span className="bg-white/15 text-[10px] font-mono px-3 py-0.5 rounded-full border border-white/10">ID: {emp.employeeId}</span>}
@@ -169,7 +184,7 @@ const Profile = () => {
       {/* Navigation tabs */}
       <div>
         <div className="flex gap-2 border-b border-gray-200 dark:border-darkBorder bg-white/40 dark:bg-darkSurface/40 rounded-t-2xl px-4 py-2">
-          {[['personal', 'Personal Detail'], ['skills', 'Skills list'], ['password', 'Change Password'], ['prefs', 'Preferences'], ['sessions', 'Active Sessions']].map(([k, l]) => (
+          {tabs.map(([k, l]) => (
             <TabBtn key={k} active={activeTab === k} onClick={() => setActiveTab(k)}>{l}</TabBtn>
           ))}
         </div>
@@ -177,31 +192,55 @@ const Profile = () => {
         <div className="glass-card bg-white/50 dark:bg-darkSurface/50 rounded-b-2xl border-x border-b border-gray-100 dark:border-darkBorder p-6">
           {/* Personal Details */}
           {activeTab === 'personal' && (
-            <form onSubmit={handleDetailsSubmit} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="First Name"><Input value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} /></Field>
-                <Field label="Last Name"><Input value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} /></Field>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Mobile Phone"><Input value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} /></Field>
-                <Field label="Emergency Contact"><Input value={form.emergencyContact} onChange={e => setForm(f => ({ ...f, emergencyContact: e.target.value }))} /></Field>
-              </div>
-              <Field label="Residential Address"><Textarea rows={2} value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} /></Field>
-              
-              <div className="p-4 bg-yellow-500/5 border border-yellow-500/10 rounded-2xl text-[11px] text-gray-500 dark:text-gray-400">
-                💡 <strong>Notice:</strong> Submitting updates to your personal details (except profile photo) will launch a compliance <strong>Profile Edit Request</strong> which requires administrator approval before it takes effect on your active files.
-              </div>
+            hasEmployeeRef ? (
+              <form onSubmit={handleDetailsSubmit} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="First Name"><Input value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} /></Field>
+                  <Field label="Last Name"><Input value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} /></Field>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Mobile Phone"><Input value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} /></Field>
+                  <Field label="Emergency Contact"><Input value={form.emergencyContact} onChange={e => setForm(f => ({ ...f, emergencyContact: e.target.value }))} /></Field>
+                </div>
+                <Field label="Residential Address"><Textarea rows={2} value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} /></Field>
+                
+                <div className="p-4 bg-yellow-500/5 border border-yellow-500/10 rounded-2xl text-[11px] text-gray-500 dark:text-gray-400">
+                  💡 <strong>Notice:</strong> Submitting updates to your personal details (except profile photo) will launch a compliance <strong>Profile Edit Request</strong> which requires administrator approval before it takes effect on your active files.
+                </div>
 
-              <div className="flex justify-end">
-                <button type="submit" disabled={saving} className="btn-premium-gradient text-white font-bold py-2.5 px-6 rounded-xl text-xs shadow-md">
-                  {saving ? 'Submitting request...' : 'Save & Request Approval'}
-                </button>
+                <div className="flex justify-end">
+                  <button type="submit" disabled={saving} className="btn-premium-gradient text-white font-bold py-2.5 px-6 rounded-xl text-xs shadow-md">
+                    {saving ? 'Submitting request...' : 'Save & Request Approval'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Username">
+                    <Input value={user?.username || ''} disabled />
+                  </Field>
+                  <Field label="Email Address">
+                    <Input value={user?.email || ''} disabled />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Security Role">
+                    <Input value={roleName} disabled />
+                  </Field>
+                  <Field label="Organization Node">
+                    <Input value={user?.organization?.name || 'EWAP Central'} disabled />
+                  </Field>
+                </div>
+                <div className="p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl text-[11px] text-slate-500 dark:text-slate-400">
+                  🛡️ <strong>System Account Status:</strong> This is a secure directory administration account. Personal registries, contact cards, and skills lists are reserved for corporate workspace employees.
+                </div>
               </div>
-            </form>
+            )
           )}
 
           {/* Skills */}
-          {activeTab === 'skills' && (
+          {activeTab === 'skills' && showSkillsTab && (
             <div className="space-y-6">
               <div className="space-y-3">
                 <Field label="Add Expert Skill"><Input value={skillInput} onChange={e => setSkillInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }} placeholder="e.g. React, Node.js" /></Field>
