@@ -145,9 +145,9 @@ const toggleUserStatus = async (req, res) => {
       if (user.organization?._id?.toString() !== req.user.organization?.toString()) {
         return res.status(403).json({ error: 'Forbidden. User belongs to another organization.' });
       }
-      const protectedRoles = ['Organization Admin', 'HR Manager', 'Super Admin'];
+      const protectedRoles = ['Organization Admin', 'HR Manager', 'Super Admin', 'Manager'];
       if (protectedRoles.includes(user.role?.name)) {
-        return res.status(403).json({ error: 'Forbidden. HR Managers cannot suspend admin or HR accounts.' });
+        return res.status(403).json({ error: 'Forbidden. HR Managers cannot manage admin, HR, or Department Manager accounts.' });
       }
     }
 
@@ -250,9 +250,33 @@ const resetUserPassword = async (req, res) => {
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await User.findById(id);
+    const user = await User.findById(id).populate('role');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Enforce Hierarchy for Deletion
+    const requesterRole = req.user.role.name;
+    const targetRole = user.role?.name;
+
+    if (requesterRole !== 'Super Admin') {
+      if (user.organization?.toString() !== req.user.organization?.toString()) {
+        return res.status(403).json({ error: 'Forbidden. User belongs to another organization.' });
+      }
+    }
+
+    let allowed = false;
+    if (requesterRole === 'Super Admin') {
+      if (targetRole !== 'Super Admin') allowed = true;
+    } else if (requesterRole === 'Organization Admin') {
+      if (targetRole !== 'Super Admin' && targetRole !== 'Organization Admin') allowed = true;
+    } else if (requesterRole === 'HR Manager') {
+      const HRProtected = ['Super Admin', 'Organization Admin', 'HR Manager', 'Manager'];
+      if (!HRProtected.includes(targetRole)) allowed = true;
+    }
+
+    if (!allowed) {
+      return res.status(403).json({ error: 'Forbidden. You do not have permission to delete this user.' });
     }
 
     user.status = 'Deleted';
@@ -305,7 +329,7 @@ const deactivateUser = async (req, res) => {
     } else if (requesterRole === 'Organization Admin') {
       if (targetRole !== 'Super Admin' && targetRole !== 'Organization Admin') allowed = true;
     } else if (requesterRole === 'HR Manager') {
-      const HRProtected = ['Super Admin', 'Organization Admin', 'HR Manager'];
+      const HRProtected = ['Super Admin', 'Organization Admin', 'HR Manager', 'Manager'];
       if (!HRProtected.includes(targetRole)) allowed = true;
     } else if (requesterRole === 'Team Lead') {
       // Must be an Employee and report to the Team Lead

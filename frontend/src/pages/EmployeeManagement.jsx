@@ -8,8 +8,10 @@ import { DemoContext } from '../context/DemoContext';
 const EmployeeManagement = () => {
   const { user } = useContext(AuthContext);
   const { isDemoMode, demoRole } = useContext(DemoContext);
-  const activeRole = isDemoMode ? demoRole : user?.role;
+  const activeRole = isDemoMode ? demoRole : (user?.role?.name || user?.role || 'Admin');
   const [employees, setEmployees] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [designations, setDesignations] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   
@@ -18,7 +20,17 @@ const EmployeeManagement = () => {
   const fetchEmployees = async () => {
     try {
       const { data } = await api.get('/employees');
-      setEmployees(data);
+      if (isDemoMode && (!data || data.length === 0)) {
+        setEmployees([
+          { _id: 'emp1', firstName: 'Riya', lastName: 'Sharma', designation: 'Developer' },
+          { _id: 'emp2', firstName: 'Karan', lastName: 'Patel', designation: 'Developer' },
+          { _id: 'emp3', firstName: 'Priya', lastName: 'Singh', designation: 'Developer' },
+          { _id: 'emp4', firstName: 'Amit', lastName: 'Verma', designation: 'Senior Developer' },
+          { _id: 'emp5', firstName: 'Neha', lastName: 'Joshi', designation: 'Lead QA' }
+        ]);
+      } else {
+        setEmployees(data || []);
+      }
     } catch (error) {
       toast.error('Failed to load employees');
     } finally {
@@ -28,7 +40,40 @@ const EmployeeManagement = () => {
 
   useEffect(() => {
     fetchEmployees();
-  }, []);
+    const fetchSetupData = async () => {
+      try {
+        const [deptsRes, desigsRes] = await Promise.all([
+          api.get('/departments').catch(() => ({ data: [] })),
+          api.get('/designations').catch(() => ({ data: [] }))
+        ]);
+        const fetchedDepts = deptsRes.data || [];
+        const fetchedDesigs = desigsRes.data || [];
+
+        if (isDemoMode && fetchedDepts.length === 0) {
+          setDepartments([
+            { _id: 'dept1', name: 'Engineering', code: 'ENG' },
+            { _id: 'dept2', name: 'Human Resources', code: 'HR' },
+            { _id: 'dept3', name: 'Product Management', code: 'PM' }
+          ]);
+        } else {
+          setDepartments(fetchedDepts);
+        }
+
+        if (isDemoMode && fetchedDesigs.length === 0) {
+          setDesignations([
+            { _id: 'desig1', name: 'Software Engineer', code: 'SWE' },
+            { _id: 'desig2', name: 'Product Manager', code: 'PM' },
+            { _id: 'desig3', name: 'HR Executive', code: 'HRE' }
+          ]);
+        } else {
+          setDesignations(fetchedDesigs);
+        }
+      } catch (err) {
+        console.error('Error fetching setup data:', err);
+      }
+    };
+    fetchSetupData();
+  }, [isDemoMode]);
 
   const onSubmit = async (data) => {
     try {
@@ -72,16 +117,11 @@ const EmployeeManagement = () => {
     }
   };
 
-  // Role-based filtering: exclude archived, Org Admin accounts, and HR Manager accounts
+  // Role-based filtering: exclude archived and Super Admin accounts
   const visibleEmployees = employees.filter(emp => {
     const role = emp.userRef?.role?.name;
     if (emp.status === 'Archived') return false;
-    if (activeRole === 'Organization Admin') {
-      return role !== 'Organization Admin';
-    }
-    if (activeRole === 'HR Manager') {
-      return role !== 'Organization Admin' && role !== 'HR Manager';
-    }
+    if (role === 'Super Admin') return false;
     return true;
   });
 
@@ -163,22 +203,36 @@ const EmployeeManagement = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex gap-2 justify-end">
-                        <button
-                          onClick={() => handleToggleSuspend(emp)}
-                          className={`font-bold py-1.5 px-3 rounded-xl text-xs border transition-all ${
-                            emp.userRef?.isActive !== false
-                              ? 'bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 border-orange-500/10 dark:text-orange-400'
-                              : 'bg-green-500/10 text-green-600 hover:bg-green-500/20 border-green-500/10 dark:text-green-400'
-                          }`}
-                        >
-                          {emp.userRef?.isActive !== false ? 'Suspend' : 'Activate'}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteEmployee(emp._id, `${emp.firstName} ${emp.lastName}`)}
-                          className="font-bold py-1.5 px-3 rounded-xl text-xs bg-red-500/10 text-red-600 hover:bg-red-500/20 border border-red-500/10 dark:text-red-400 transition-all"
-                        >
-                          Delete
-                        </button>
+                        {(() => {
+                          const targetRole = emp.userRef?.role?.name || emp.userRef?.role || 'Employee';
+                          const isProtected = ['Super Admin', 'Organization Admin', 'HR Manager', 'Manager', 'Department Manager'].includes(targetRole) || emp.userRef?._id === user?._id;
+                          const isHR = activeRole === 'HR Manager';
+
+                          if (isHR && isProtected) {
+                            return <span className="text-slate-400 dark:text-slate-500 italic text-[11px]">Protected Profile</span>;
+                          }
+
+                          return (
+                            <>
+                              <button
+                                onClick={() => handleToggleSuspend(emp)}
+                                className={`font-bold py-1.5 px-3 rounded-xl text-xs border transition-all ${
+                                  emp.userRef?.isActive !== false
+                                    ? 'bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 border-orange-500/10 dark:text-orange-400'
+                                    : 'bg-green-500/10 text-green-600 hover:bg-green-500/20 border-green-500/10 dark:text-green-400'
+                                }`}
+                              >
+                                {emp.userRef?.isActive !== false ? 'Suspend' : 'Activate'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEmployee(emp._id, `${emp.firstName} ${emp.lastName}`)}
+                                className="font-bold py-1.5 px-3 rounded-xl text-xs bg-red-500/10 text-red-600 hover:bg-red-500/20 border border-red-500/10 dark:text-red-400 transition-all"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>
@@ -218,11 +272,21 @@ const EmployeeManagement = () => {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Department</label>
-                      <input type="text" {...register('department', { required: true })} className="mt-1 block w-full border border-indigo-500/20 dark:border-indigo-500/20 bg-white/50 dark:bg-[#0B1023]/40 rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-400 dark:text-white" />
+                      <select {...register('department', { required: true })} className="mt-1 block w-full bg-white dark:bg-[#151A30] border border-indigo-500/20 dark:border-indigo-500/35 rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-400 dark:text-white">
+                        <option value="">-- Select Department --</option>
+                        {departments.map(d => (
+                          <option key={d._id} value={d.name}>{d.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Designation</label>
-                      <input type="text" {...register('designation', { required: true })} className="mt-1 block w-full border border-indigo-500/20 dark:border-indigo-500/20 bg-white/50 dark:bg-[#0B1023]/40 rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-400 dark:text-white" />
+                      <select {...register('designation', { required: true })} className="mt-1 block w-full bg-white dark:bg-[#151A30] border border-indigo-500/20 dark:border-indigo-500/35 rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-400 dark:text-white">
+                        <option value="">-- Select Designation --</option>
+                        {designations.map(d => (
+                          <option key={d._id} value={d.name}>{d.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Security Role</label>
@@ -231,6 +295,15 @@ const EmployeeManagement = () => {
                         <option value="Manager">Manager</option>
                         <option value="HR Manager">HR Manager</option>
                         <option value="Finance">Finance</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Reporting Manager</label>
+                      <select {...register('reportingManager')} className="mt-1 block w-full bg-white dark:bg-[#151A30] border border-indigo-500/20 dark:border-indigo-500/35 rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-400 dark:text-white">
+                        <option value="">-- No Manager / Unassigned --</option>
+                        {employees.map(e => (
+                          <option key={e._id} value={e._id}>{e.firstName} {e.lastName} ({e.designation || 'Staff'})</option>
+                        ))}
                       </select>
                     </div>
                     <div>

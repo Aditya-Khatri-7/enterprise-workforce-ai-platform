@@ -15,14 +15,28 @@ const TeamLeadRatings = () => {
   const [comments, setComments] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const activeRole = isDemoMode ? (demoRole || 'Team Lead') : (user?.role?.name || user?.role || '');
+  const isManager = ['Manager', 'Department Manager'].includes(activeRole);
+
   const loadTeam = async () => {
     try {
       setLoading(true);
-      const tlRef = user?.employeeRef?._id || user?.employeeRef;
       const res = await api.get('/employees');
       const allEmps = res.data || [];
-      const myTeam = allEmps.filter(e => e.reportingManager === tlRef || e.reportingManager?._id === tlRef);
-      setEmployees(myTeam);
+
+      let list = [];
+      if (isManager) {
+        const myEmpProfile = allEmps.find(e => String(e.userRef?._id || e.userRef) === String(user?._id));
+        const myDept = myEmpProfile?.department;
+        list = allEmps.filter(e => {
+          if (myDept) return e.department === myDept;
+          return true;
+        });
+      } else {
+        const tlRef = user?.employeeRef?._id || user?.employeeRef;
+        list = allEmps.filter(e => String(e.reportingManager?._id || e.reportingManager) === String(tlRef));
+      }
+      setEmployees(list);
     } catch (err) {
       toast.error('Failed to load team list');
     } finally {
@@ -48,21 +62,22 @@ const TeamLeadRatings = () => {
     if (!selectedEmp) return;
     setSubmitting(true);
     try {
+      const payload = isManager ? { managerRating: ratingVal } : { teamLeadRating: ratingVal };
       if (isDemoMode) {
         setEmployees(prev => prev.map(emp => 
           emp._id === selectedEmp._id 
-            ? { ...emp, ratings: { ...emp.ratings, teamLeadRating: ratingVal } } 
+            ? { ...emp, ratings: { ...emp.ratings, [isManager ? 'managerRating' : 'teamLeadRating']: ratingVal } } 
             : emp
         ));
         toast.success('Rating updated successfully (Demo Mode)!');
       } else {
-        await api.put(`/employees/${selectedEmp._id}/rate`, { teamLeadRating: ratingVal });
+        await api.put(`/employees/${selectedEmp._id}/rate`, payload);
         toast.success('Rating submitted successfully!');
         loadTeam();
       }
       setSelectedEmp(prev => ({
         ...prev,
-        ratings: { ...prev?.ratings, teamLeadRating: ratingVal }
+        ratings: { ...prev?.ratings, [isManager ? 'managerRating' : 'teamLeadRating']: ratingVal }
       }));
     } catch (err) {
       toast.error('Failed to submit rating');
@@ -130,7 +145,7 @@ const TeamLeadRatings = () => {
             {selectedEmp ? (
               <form onSubmit={handleRateSubmit} className="space-y-4 mt-4">
                 <div className="space-y-2">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Team Lead Rating (1-5)</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">{isManager ? 'Manager Rating (1-5)' : 'Team Lead Rating (1-5)'}</label>
                   <select
                     value={ratingVal}
                     onChange={e => setRatingVal(Number(e.target.value))}

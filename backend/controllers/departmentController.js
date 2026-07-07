@@ -2,7 +2,7 @@ const Department = require('../models/Department');
 
 const createDepartment = async (req, res) => {
   try {
-    const { name, code } = req.body;
+    const { name, code, manager } = req.body;
     if (!name || !code) {
       return res.status(400).json({ error: 'Department name and code are required' });
     }
@@ -17,7 +17,7 @@ const createDepartment = async (req, res) => {
       return res.status(400).json({ error: 'Department with this name already exists in your organization' });
     }
 
-    const dept = new Department({ name, code: code.toUpperCase(), organization: orgId });
+    const dept = new Department({ name, code: code.toUpperCase(), organization: orgId, manager: manager || null });
     await dept.save();
 
     res.status(201).json({ message: 'Department created successfully', department: dept });
@@ -32,7 +32,7 @@ const getDepartments = async (req, res) => {
     const orgId = req.user.role?.name === 'Super Admin' ? req.query.organizationId : req.user.organization;
     if (!orgId) return res.json([]);
 
-    const departments = await Department.find({ organization: orgId }).sort({ name: 1 });
+    const departments = await Department.find({ organization: orgId }).populate('manager', 'firstName lastName').sort({ name: 1 });
     res.json(departments);
   } catch (error) {
     console.error('Get Departments Error:', error);

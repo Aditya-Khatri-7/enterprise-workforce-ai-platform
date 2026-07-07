@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useContext, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
@@ -927,11 +927,14 @@ const SuperAdminDashboard = () => {
 // 2. ORG ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 const OrgAdminDashboard = () => {
+  const { user } = useContext(AuthContext);
+  const { isDemoMode } = useContext(DemoContext);
   const [modalType, setModalType] = useState(null); // 'dept' | 'desig' | 'holiday' | 'shift' | 'office'
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [workShifts, setWorkShifts] = useState([]);
   const [officeLocations, setOfficeLocations] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loadingSetup, setLoadingSetup] = useState(true);
 
   const [alerts, setAlerts] = useState([
@@ -963,16 +966,69 @@ const OrgAdminDashboard = () => {
   const fetchSetupData = async () => {
     try {
       setLoadingSetup(true);
-      const [deptsRes, desigsRes, shiftsRes, officesRes] = await Promise.all([
+      const [deptsRes, desigsRes, shiftsRes, officesRes, empsRes] = await Promise.all([
         api.get('/departments').catch(() => ({ data: [] })),
         api.get('/designations').catch(() => ({ data: [] })),
         api.get('/workshifts').catch(() => ({ data: [] })),
-        api.get('/office-locations').catch(() => ({ data: [] }))
+        api.get('/office-locations').catch(() => ({ data: [] })),
+        api.get('/employees').catch(() => ({ data: [] }))
       ]);
-      setDepartments(deptsRes.data || []);
-      setDesignations(desigsRes.data || []);
-      setWorkShifts(shiftsRes.data || []);
-      setOfficeLocations(officesRes.data || []);
+
+      const fetchedDepts = deptsRes.data || [];
+      const fetchedDesigs = desigsRes.data || [];
+      const fetchedShifts = shiftsRes.data || [];
+      const fetchedOffices = officesRes.data || [];
+      const fetchedEmps = empsRes.data || [];
+
+      if (isDemoMode && fetchedEmps.length === 0) {
+        setEmployees([
+          { _id: 'emp1', firstName: 'Riya', lastName: 'Sharma', designation: 'Developer' },
+          { _id: 'emp2', firstName: 'Karan', lastName: 'Patel', designation: 'Developer' },
+          { _id: 'emp3', firstName: 'Priya', lastName: 'Singh', designation: 'Developer' },
+          { _id: 'emp4', firstName: 'Amit', lastName: 'Verma', designation: 'Senior Developer' },
+          { _id: 'emp5', firstName: 'Neha', lastName: 'Joshi', designation: 'Lead QA' }
+        ]);
+      } else {
+        setEmployees(fetchedEmps);
+      }
+
+      if (isDemoMode && fetchedDepts.length === 0) {
+        setDepartments([
+          { _id: 'dept1', name: 'Engineering', code: 'ENG' },
+          { _id: 'dept2', name: 'Human Resources', code: 'HR' },
+          { _id: 'dept3', name: 'Product Management', code: 'PM' }
+        ]);
+      } else {
+        setDepartments(fetchedDepts);
+      }
+
+      if (isDemoMode && fetchedDesigs.length === 0) {
+        setDesignations([
+          { _id: 'desig1', name: 'Software Engineer', code: 'SWE' },
+          { _id: 'desig2', name: 'Product Manager', code: 'PM' },
+          { _id: 'desig3', name: 'HR Executive', code: 'HRE' }
+        ]);
+      } else {
+        setDesignations(fetchedDesigs);
+      }
+
+      if (isDemoMode && fetchedShifts.length === 0) {
+        setWorkShifts([
+          { _id: 'shift1', name: 'Morning Roster', startTime: '09:00', endTime: '18:00' },
+          { _id: 'shift2', name: 'Night Shift', startTime: '22:00', endTime: '06:00' }
+        ]);
+      } else {
+        setWorkShifts(fetchedShifts);
+      }
+
+      if (isDemoMode && fetchedOffices.length === 0) {
+        setOfficeLocations([
+          { _id: 'loc1', name: 'Bangalore Core HQ', address: 'Bangalore Tech Park', totalEmployees: 45 },
+          { _id: 'loc2', name: 'San Francisco Hub', address: 'Market Street SF', totalEmployees: 12 }
+        ]);
+      } else {
+        setOfficeLocations(fetchedOffices);
+      }
     } catch (err) {
       console.error('Error fetching setup data:', err);
     } finally {
@@ -989,9 +1045,10 @@ const OrgAdminDashboard = () => {
     e.preventDefault();
     const name = e.target.deptName.value.trim();
     const code = e.target.deptCode.value.trim();
+    const manager = e.target.deptManager.value;
     if (!name || !code) return;
     try {
-      await api.post('/departments', { name, code });
+      await api.post('/departments', { name, code, manager: manager || null });
       toast.success('Department created successfully!');
       setModalType(null);
       fetchSetupData();
@@ -1100,8 +1157,8 @@ const OrgAdminDashboard = () => {
     }
   };
 
-  const hrManagers = users.filter(u => u.role?.name === 'HR Manager' && u.status !== 'Deleted');
-  const pendingReactivationRequests = users.filter(u => u.status === 'Deactivation_Requested' && u.role?.name === 'HR Manager');
+  const hrManagers = users.filter(u => ['HR Manager', 'Auditor'].includes(u.role?.name) && u.status !== 'Deleted');
+  const pendingReactivationRequests = users.filter(u => u.status === 'Deactivation_Requested' && ['HR Manager', 'Auditor'].includes(u.role?.name));
 
   return (
     <div className="space-y-6 text-slate-800 dark:text-white">
@@ -1124,13 +1181,13 @@ const OrgAdminDashboard = () => {
       <div className="flex border-b border-slate-200 dark:border-indigo-500/20 pb-1 gap-4">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer bg-transparent border-0 ${activeTab === 'overview' ? 'border-blue-500 text-blue-600 dark:text-blue-450' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+          className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer bg-transparent border-0 ${activeTab === 'overview' ? 'border-blue-500 text-blue-600 dark:text-blue-455' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
         >
           Overview & Departments
         </button>
         <button
           onClick={() => setActiveTab('reactivations')}
-          className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer relative bg-transparent border-0 ${activeTab === 'reactivations' ? 'border-blue-500 text-blue-600 dark:text-blue-450' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+          className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer relative bg-transparent border-0 ${activeTab === 'reactivations' ? 'border-blue-500 text-blue-600 dark:text-blue-455' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
         >
           Reactivation Requests
           {pendingReactivationRequests.length > 0 && (
@@ -1159,12 +1216,12 @@ const OrgAdminDashboard = () => {
               {/* HR Managers List */}
               <div className="glass-card border border-blue-500/20 rounded-2xl p-5">
                 <h3 className="text-xs font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest mb-4">
-                  HR Managers
+                  HR Managers & Compliance Auditors
                 </h3>
                 {loadingUsers ? (
-                  <p className="text-xs text-slate-450 italic py-4 text-center">Loading HR managers...</p>
+                  <p className="text-xs text-slate-450 italic py-4 text-center">Loading administrators...</p>
                 ) : hrManagers.length === 0 ? (
-                  <p className="text-xs text-slate-455 italic py-4 text-center">No HR Managers found in organization.</p>
+                  <p className="text-xs text-slate-455 italic py-4 text-center">No HR Managers or Auditors found in organization.</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
@@ -1172,6 +1229,7 @@ const OrgAdminDashboard = () => {
                         <tr className="text-slate-500 dark:text-slate-400 text-left font-mono">
                           <th className="pb-3 font-semibold">Username</th>
                           <th className="pb-3 font-semibold">Email</th>
+                          <th className="pb-3 font-semibold">Role</th>
                           <th className="pb-3 font-semibold">Status</th>
                           <th className="pb-3 font-semibold text-right">Actions</th>
                         </tr>
@@ -1181,6 +1239,7 @@ const OrgAdminDashboard = () => {
                           <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
                             <td className="py-2.5 font-bold text-slate-900 dark:text-white font-sans">{u.username}</td>
                             <td className="py-2.5">{u.email}</td>
+                            <td className="py-2.5 font-bold text-teal-650 dark:text-teal-400 font-sans">{u.role?.name || 'Auditor'}</td>
                             <td className="py-2.5 font-sans">
                               <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
                                 u.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
@@ -1217,7 +1276,9 @@ const OrgAdminDashboard = () => {
               <div className="glass-card border border-blue-500/20 rounded-2xl p-5">
                 <h3 className="text-xs font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest mb-4">Corporate Hierarchy Tree</h3>
                 <div className="flex flex-col items-center justify-center p-4 border border-slate-200 dark:border-blue-500/10 bg-slate-50/50 dark:bg-[#0E1325]/30 rounded-xl relative">
-                  <div className="px-5 py-2.5 bg-blue-600 border border-blue-500 rounded-xl font-black text-xs uppercase shadow text-center text-white">TechNova Global Head</div>
+                  <div className="px-5 py-2.5 bg-blue-600 border border-blue-500 rounded-xl font-black text-xs uppercase shadow text-center text-white">
+                    {isDemoMode ? "TechNova Global" : (user?.organization?.name || "TechNova Global")} Head
+                  </div>
                   
                   {/* Vertical link line */}
                   <div className="h-8 w-0.5 bg-blue-500/40 my-1" />
@@ -1402,8 +1463,17 @@ const OrgAdminDashboard = () => {
                 <input name="deptName" required type="text" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500" placeholder="e.g. Research and Development" />
               </div>
               <div className="space-y-1">
+                <label className="block text-slate-500 dark:text-slate-400 font-semibold">Department Code</label>
+                <input name="deptCode" required type="text" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500" placeholder="e.g. R_D" />
+              </div>
+              <div className="space-y-1">
                 <label className="block text-slate-500 dark:text-slate-400 font-semibold">Department Manager</label>
-                <input name="deptManager" required type="text" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500" placeholder="e.g. Elena Rostova" />
+                <select name="deptManager" className="w-full bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl p-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500">
+                  <option value="">-- Select Manager / Unassigned --</option>
+                  {employees.map(e => (
+                    <option key={e._id} value={e._id}>{e.firstName} {e.lastName} ({e.designation || 'Staff'})</option>
+                  ))}
+                </select>
               </div>
               <div className="pt-2">
                 <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-all border-0 cursor-pointer">Submit Entry</button>
@@ -1499,6 +1569,7 @@ const OrgAdminDashboard = () => {
 };
 
 const HRManagerDashboard = () => {
+  const { user } = useContext(AuthContext);
   const { isDemoMode } = useContext(DemoContext);
   const [pipeline] = useState({
     Applied: 105,
@@ -1533,12 +1604,19 @@ const HRManagerDashboard = () => {
   };
 
   // NEW HR STATES
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'staff' | 'reactivations' | 'progress-reports'
   const [users, setUsers] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [progressReports, setProgressReports] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Modals state
+  const [showPostJobModal, setShowPostJobModal] = useState(false);
+  const [postingJob, setPostingJob] = useState(false);
 
   // Modals state
   const [suspendUserTarget, setSuspendUserTarget] = useState(null);
@@ -1566,16 +1644,20 @@ const HRManagerDashboard = () => {
   const loadHRData = async () => {
     try {
       setLoading(true);
-      const [userRes, empRes, deptRes, reportRes] = await Promise.all([
+      const [userRes, empRes, deptRes, reportRes, jobsRes, candidatesRes] = await Promise.all([
         api.get('/users').catch(() => ({ data: [] })),
         api.get('/employees').catch(() => ({ data: [] })),
         api.get('/departments').catch(() => ({ data: [] })),
-        api.get('/progress-reports').catch(() => ({ data: [] }))
+        api.get('/progress-reports').catch(() => ({ data: [] })),
+        api.get('/recruitment/jobs').catch(() => ({ data: [] })),
+        api.get('/recruitment/candidates').catch(() => ({ data: [] }))
       ]);
       setUsers(userRes.data || []);
       setEmployees(empRes.data || []);
       setDepartments(deptRes.data || []);
       setProgressReports(reportRes.data || []);
+      setJobs(jobsRes.data || []);
+      setCandidates(candidatesRes.data || []);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load HR administrative records');
@@ -1591,6 +1673,38 @@ const HRManagerDashboard = () => {
     }
     loadHRData();
   }, [isDemoMode]);
+
+  const handlePostJobSubmit = async (e) => {
+    e.preventDefault();
+    const title = e.target.jobTitle.value;
+    const department = e.target.jobDept.value;
+    const description = e.target.jobDesc.value;
+
+    if (!title || !department || !description) {
+      toast.warning('All fields are required');
+      return;
+    }
+
+    if (isDemoMode) {
+      const mockJob = { _id: 'mockJob' + Date.now(), title, department, description, createdAt: new Date() };
+      setJobs([mockJob, ...jobs]);
+      toast.success('Job vacancy posted successfully (Demo Mode)!');
+      setShowPostJobModal(false);
+      return;
+    }
+
+    try {
+      setPostingJob(true);
+      await api.post('/recruitment/jobs', { title, department, description });
+      toast.success('Job vacancy posted successfully!');
+      setShowPostJobModal(false);
+      await loadHRData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to post job vacancy');
+    } finally {
+      setPostingJob(false);
+    }
+  };
 
   const handleSuspendUserSubmit = async (e) => {
     e.preventDefault();
@@ -1773,9 +1887,9 @@ const HRManagerDashboard = () => {
         <>
           {/* Grid KPI Metrics */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Recruitment Pipeline" value="180 Candidates" colorAccent="teal" icon={Users} desc="All Active Openings" />
+            <StatCard label="Recruitment Pipeline" value={candidates.length > 0 ? `${candidates.length} Candidates` : "180 Candidates"} colorAccent="teal" icon={Users} desc="All Active Openings" />
             <StatCard label="Active Leaves" value="12 Members" colorAccent="teal" icon={Calendar} desc="This Week Roster" />
-            <StatCard label="Open Job Postings" value="6 Roles" colorAccent="teal" icon={Briefcase} desc="3 Referral Bonuses Active" />
+            <StatCard label="Open Job Postings" value={jobs.length > 0 ? `${jobs.length} Roles` : "6 Roles"} colorAccent="teal" icon={Briefcase} desc="3 Referral Bonuses Active" />
             <StatCard label="Monthly New Hires" value="9 Onboarded" colorAccent="teal" icon={Award} desc="2 Pending Verification" />
           </div>
 
@@ -1854,9 +1968,9 @@ const HRManagerDashboard = () => {
               <div className="glass-card border border-teal-500/20 rounded-2xl p-5 space-y-4">
                 <h3 className="text-xs font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest">HR Shortcuts</h3>
                 <div className="flex flex-col gap-2">
-                  <button onClick={() => toast.info('Navigating to Add Employee workflow...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-teal-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-teal-655/10 border border-slate-200 dark:border-[#1F2647] hover:border-teal-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between border-0 cursor-pointer"><span>Onboard New Employee</span><ArrowRight className="h-4 w-4 text-teal-655 dark:text-teal-400" /></button>
-                  <button onClick={() => toast.info('Navigating to Job Postings...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-teal-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-teal-655/10 border border-slate-200 dark:border-[#1F2647] hover:border-teal-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between border-0 cursor-pointer"><span>Post Job Vacancy</span><ArrowRight className="h-4 w-4 text-teal-655 dark:text-teal-400" /></button>
-                  <button onClick={() => toast.info('Navigating to Payroll Registry...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-teal-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-teal-655/10 border border-slate-200 dark:border-[#1F2647] hover:border-teal-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between border-0 cursor-pointer"><span>Run Staff Payroll</span><ArrowRight className="h-4 w-4 text-teal-655 dark:text-teal-400" /></button>
+                  <button onClick={() => navigate('/admin/employees')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-teal-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-teal-655/10 border border-slate-200 dark:border-[#1F2647] hover:border-teal-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between border-0 cursor-pointer"><span>Onboard New Employee</span><ArrowRight className="h-4 w-4 text-teal-655 dark:text-teal-400" /></button>
+                  <button onClick={() => setShowPostJobModal(true)} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-teal-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-teal-655/10 border border-slate-200 dark:border-[#1F2647] hover:border-teal-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between border-0 cursor-pointer"><span>Post Job Vacancy</span><ArrowRight className="h-4 w-4 text-teal-655 dark:text-teal-400" /></button>
+                  <button onClick={() => toast.info('Payroll execution is restricted to Finance role.')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-teal-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-teal-655/10 border border-slate-200 dark:border-[#1F2647] hover:border-teal-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between border-0 cursor-pointer"><span>Run Staff Payroll</span><ArrowRight className="h-4 w-4 text-teal-655 dark:text-teal-400" /></button>
                 </div>
               </div>
 
@@ -1918,16 +2032,25 @@ const HRManagerDashboard = () => {
                         {emp?.department || 'N/A'}
                       </td>
                       <td className="py-2.5">
-                        <select
-                          value={u.role?.name || u.role || 'Employee'}
-                          onChange={(e) => handleRoleChange(u._id, e.target.value)}
-                          className="bg-[#0B1023] border border-slate-800 rounded p-1 text-[10px] text-slate-300"
-                        >
-                          <option value="Employee">Employee</option>
-                          <option value="Team Lead">Team Lead</option>
-                          <option value="Manager">Department Manager</option>
-                          <option value="HR Manager">HR Manager</option>
-                        </select>
+                        {(() => {
+                          const targetRole = u.role?.name || u.role || 'Employee';
+                          const isProtected = ['Super Admin', 'Organization Admin', 'HR Manager', 'Manager', 'Department Manager'].includes(targetRole) || u._id === user?._id;
+                          if (isProtected) {
+                            return <span className="font-bold text-[10px] text-slate-500">{targetRole === 'Manager' ? 'Department Manager' : targetRole}</span>;
+                          }
+                          return (
+                            <select
+                              value={u.role?.name || u.role || 'Employee'}
+                              onChange={(e) => handleRoleChange(u._id, e.target.value)}
+                              className="bg-[#0B1023] border border-slate-800 rounded p-1 text-[10px] text-slate-300"
+                            >
+                              <option value="Employee">Employee</option>
+                              <option value="Team Lead">Team Lead</option>
+                              <option value="Manager">Department Manager</option>
+                              <option value="HR Manager">HR Manager</option>
+                            </select>
+                          );
+                        })()}
                       </td>
                       <td className="py-2.5">
                         {managerEmp ? `${managerEmp.firstName} ${managerEmp.lastName}` : 'None'}
@@ -1940,33 +2063,44 @@ const HRManagerDashboard = () => {
                         </span>
                       </td>
                       <td className="py-2.5 text-right space-x-2">
-                        {emp && (
-                          <button
-                            onClick={() => {
-                              setEditStaffTarget(emp);
-                              setSelectedDept(emp.department || '');
-                              setSelectedManager(emp.reportingManager || '');
-                            }}
-                            className="px-2 py-1 text-[9px] font-bold uppercase bg-teal-500/10 hover:bg-teal-500/20 text-teal-600 dark:text-teal-400 border border-teal-500/20 rounded-lg cursor-pointer"
-                          >
-                            Edit Transfer
-                          </button>
-                        )}
-                        {u.status !== 'Suspended' ? (
-                          <button
-                            onClick={() => setSuspendUserTarget(u)}
-                            className="px-2 py-1 text-[9px] font-bold uppercase bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-lg cursor-pointer"
-                          >
-                            Suspend
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleReviewReactivation(u._id, 'Approve')}
-                            className="px-2 py-1 text-[9px] font-bold uppercase bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-650 dark:text-emerald-400 border border-emerald-500/20 rounded-lg cursor-pointer"
-                          >
-                            Reactivate
-                          </button>
-                        )}
+                        {(() => {
+                          const targetRole = u.role?.name || u.role || 'Employee';
+                          const isProtected = ['Super Admin', 'Organization Admin', 'HR Manager', 'Manager', 'Department Manager'].includes(targetRole) || u._id === user?._id;
+                          if (isProtected) {
+                            return <span className="text-slate-400 dark:text-slate-500 italic text-[11px]">Protected Profile</span>;
+                          }
+                          return (
+                            <>
+                              {emp && (
+                                <button
+                                  onClick={() => {
+                                    setEditStaffTarget(emp);
+                                    setSelectedDept(emp.department || '');
+                                    setSelectedManager(emp.reportingManager || '');
+                                  }}
+                                  className="px-2 py-1 text-[9px] font-bold uppercase bg-teal-500/10 hover:bg-teal-500/20 text-teal-650 dark:text-teal-400 border border-teal-500/20 rounded-lg cursor-pointer"
+                                >
+                                  Edit Transfer
+                                </button>
+                              )}
+                              {u.status !== 'Suspended' ? (
+                                <button
+                                  onClick={() => setSuspendUserTarget(u)}
+                                  className="px-2 py-1 text-[9px] font-bold uppercase bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-lg cursor-pointer"
+                                >
+                                  Suspend
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleReviewReactivation(u._id, 'Approve')}
+                                  className="px-2 py-1 text-[9px] font-bold uppercase bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-650 dark:text-emerald-400 border border-emerald-500/20 rounded-lg cursor-pointer"
+                                >
+                                  Reactivate
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
@@ -2262,7 +2396,65 @@ const HRManagerDashboard = () => {
           </LocalModal>
         )}
 
-        {/* Review Report & Add Feedback Modal */}
+        {/* Post Job Vacancy Modal */}
+        {showPostJobModal && (
+          <LocalModal title="Post New Job Vacancy" onClose={() => setShowPostJobModal(false)}>
+            <form onSubmit={handlePostJobSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase">Job Title</label>
+                <input
+                  type="text"
+                  name="jobTitle"
+                  required
+                  placeholder="e.g. Senior Frontend Engineer"
+                  className="w-full text-xs p-2.5 bg-slate-50 dark:bg-[#0B1023] border border-slate-200 dark:border-[#1F2647] rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase">Department</label>
+                <select
+                  name="jobDept"
+                  required
+                  className="w-full text-xs p-2.5 bg-slate-50 dark:bg-[#0B1023] border border-slate-200 dark:border-[#1F2647] rounded-xl text-slate-900 dark:text-white"
+                >
+                  <option value="">-- Choose Department --</option>
+                  {departments.map(d => (
+                    <option key={d._id} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase">Job Description</label>
+                <textarea
+                  name="jobDesc"
+                  required
+                  rows={4}
+                  placeholder="Provide details about the job responsibilities, skills, and qualifications..."
+                  className="w-full text-xs p-2.5 bg-slate-50 dark:bg-[#0B1023] border border-slate-200 dark:border-[#1F2647] rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                ></textarea>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-slate-100 dark:border-indigo-500/15">
+                <button
+                  type="button"
+                  onClick={() => setShowPostJobModal(false)}
+                  className="px-4 py-2 text-xs font-bold uppercase text-slate-400 hover:text-white border-0 bg-transparent cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={postingJob}
+                  className="px-4 py-2 text-xs font-bold uppercase text-white btn-premium-gradient rounded-xl disabled:opacity-50 border-0 cursor-pointer"
+                >
+                  {postingJob ? 'Posting...' : 'Post Job'}
+                </button>
+              </div>
+            </form>
+          </LocalModal>
+        )}
         {reviewReportTarget && (
           <LocalModal title={`Review Team Lead Progress Report`} onClose={() => setReviewReportTarget(null)}>
             <form onSubmit={handleAddFeedbackSubmit} className="space-y-4 text-xs">

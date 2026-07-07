@@ -256,7 +256,8 @@ const me = async (req, res) => {
     const user = await User.findById(req.user._id)
       .select('-password -failedLoginAttempts')
       .populate('role')
-      .populate('employeeRef');
+      .populate('employeeRef')
+      .populate('organization', 'name organizationId status');
     
     res.json(user);
   } catch (error) {

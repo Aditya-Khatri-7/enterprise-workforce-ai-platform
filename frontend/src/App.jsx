@@ -37,6 +37,10 @@ import TeamLeadRatings from './pages/TeamLeadRatings';
 import EmployeeProjects from './pages/EmployeeProjects';
 import EmployeeHistory from './pages/EmployeeHistory';
 import EmployeeCompanyInfo from './pages/EmployeeCompanyInfo';
+import EmployeeLeaves from './pages/EmployeeLeaves';
+import EmployeeTickets from './pages/EmployeeTickets';
+import EmployeeTeamLeadRequests from './pages/EmployeeTeamLeadRequests';
+import EmployeeProjectRequests from './pages/EmployeeProjectRequests';
 
 import PremiumBackground from './components/PremiumBackground';
 import CustomCursor from './components/CustomCursor';
@@ -102,7 +106,7 @@ function App() {
                     </Route>
 
                     {/* Team Lead Dedicated Routes */}
-                    <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'Team Lead']} />}>
+                    <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'Team Lead', 'Manager', 'Department Manager']} />}>
                       <Route path="/admin/my-team" element={<TeamLeadMyTeam />} />
                       <Route path="/admin/team-lead-requests" element={<TeamLeadRequests />} />
                       <Route path="/admin/employee-ratings" element={<TeamLeadRatings />} />
@@ -114,6 +118,10 @@ function App() {
                       <Route path="/employee/projects" element={<EmployeeProjects />} />
                       <Route path="/employee/history" element={<EmployeeHistory />} />
                       <Route path="/employee/company-info" element={<EmployeeCompanyInfo />} />
+                      <Route path="/employee/leaves" element={<EmployeeLeaves />} />
+                      <Route path="/employee/tickets" element={<EmployeeTickets />} />
+                      <Route path="/employee/team-lead-requests" element={<EmployeeTeamLeadRequests />} />
+                      <Route path="/employee/project-requests" element={<EmployeeProjectRequests />} />
                     </Route>
                     
                     <Route path="/profile" element={<Profile />} />

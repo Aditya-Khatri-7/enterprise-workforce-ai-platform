@@ -15,7 +15,10 @@ import {
   FileText,
   Star,
   ShieldAlert,
-  ClipboardList
+  ClipboardList,
+  Calendar,
+  MessageSquare,
+  UserCheck
 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
@@ -230,6 +233,14 @@ const DashboardLayout = () => {
                 <ShieldAlert className="h-5 w-5 flex-shrink-0" />
                 {(!isCollapsed || isHovered) && <span>Grievance Desk</span>}
               </Link>
+              <Link 
+                to="/admin/employee-ratings" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/admin/employee-ratings') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Review & Rate Department Employees" : ""}
+              >
+                <Star className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Employee Reviews</span>}
+              </Link>
             </>
           )}
 
@@ -289,6 +300,38 @@ const DashboardLayout = () => {
               >
                 <FileText className="h-5 w-5 flex-shrink-0" />
                 {(!isCollapsed || isHovered) && <span>Resume & Ratings</span>}
+              </Link>
+              <Link 
+                to="/employee/leaves" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/employee/leaves') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-350 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Leave Status" : ""}
+              >
+                <Calendar className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Leave Status</span>}
+              </Link>
+              <Link 
+                to="/employee/tickets" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/employee/tickets') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-350 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Service Tickets" : ""}
+              >
+                <MessageSquare className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Service Tickets</span>}
+              </Link>
+              <Link 
+                to="/employee/team-lead-requests" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/employee/team-lead-requests') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-350 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Team Lead Swaps" : ""}
+              >
+                <UserCheck className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Team Lead Swaps</span>}
+              </Link>
+              <Link 
+                to="/employee/project-requests" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isCollapsed && !isHovered ? 'justify-center' : ''} ${location.pathname.includes('/employee/project-requests') ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-700 dark:text-cyan-400 border-l-4 border-cyan-455 shadow-sm' : 'hover:bg-slate-100/60 dark:hover:bg-[#1A1F3C]/50 text-slate-700 hover:text-indigo-600 dark:text-slate-350 dark:hover:text-white'}`}
+                title={isCollapsed && !isHovered ? "Project Requests" : ""}
+              >
+                <GitPullRequest className="h-5 w-5 flex-shrink-0" />
+                {(!isCollapsed || isHovered) && <span>Project Requests</span>}
               </Link>
             </>
           )}

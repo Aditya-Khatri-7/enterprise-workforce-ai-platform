@@ -134,13 +134,16 @@ const TOUR_STEPS = [
   }
 ];
 
+import { DemoContext } from '../../context/DemoContext';
+
 export default function GuidedTour() {
   const { user, setUser } = useContext(AuthContext);
+  const { isDemoMode } = useContext(DemoContext);
   const navigate = useNavigate();
   const location = useLocation();
 
   const [isActive, setIsActive] = useState(() => {
-    return localStorage.getItem('ewap_tour_complete') !== 'true';
+    return isDemoMode && localStorage.getItem('ewap_tour_complete') !== 'true';
   });
   const [stepIdx, setStepIdx] = useState(0);
   const [targetRect, setTargetRect] = useState(null);

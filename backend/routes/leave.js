@@ -7,9 +7,9 @@ router.use(authenticateUser);
 
 // Employee applies for leave, everyone else can view scoped leaves
 router.post('/', authorizeRoles('Employee'), leaveController.applyLeave);
-router.get('/', authorizeRoles('Employee', 'Organization Admin', 'HR Manager'), leaveController.getLeaves);
+router.get('/', authorizeRoles('Employee', 'Organization Admin', 'HR Manager', 'Manager', 'Department Manager'), leaveController.getLeaves);
 
-// Only Organization Admin can approve/reject
-router.put('/:id/status', authorizeRoles('Organization Admin', 'HR Manager'), leaveController.updateLeaveStatus);
+// Only Authorized managers or admins can approve/reject
+router.put('/:id/status', authorizeRoles('Organization Admin', 'HR Manager', 'Manager', 'Department Manager'), leaveController.updateLeaveStatus);
 
 module.exports = router;
