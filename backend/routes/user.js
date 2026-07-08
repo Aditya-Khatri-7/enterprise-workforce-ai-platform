@@ -12,9 +12,9 @@ router.delete('/:id', authorizeRoles('Super Admin', 'Organization Admin'), userC
 router.put('/:id/role', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager'), userController.changeUserRole);
 
 // Deactivation / Reactivation Chain
-router.post('/:id/deactivate', userController.deactivateUser);
+router.post('/:id/deactivate', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager', 'Team Lead'), userController.deactivateUser);
 router.post('/:id/reactivation-request', userController.requestReactivation);
-router.put('/:id/reactivation-review', userController.reviewReactivation);
+router.put('/:id/reactivation-review', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager'), userController.reviewReactivation);
 router.get('/:id/reactivation-status', userController.getReactivationStatus);
 
 // Password resetting and unlocking accounts

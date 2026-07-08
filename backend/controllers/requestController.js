@@ -135,6 +135,20 @@ const addComment = async (req, res) => {
     const request = await Request.findById(id);
     if (!request) return res.status(404).json({ error: 'Request not found' });
 
+    // Verify tenant boundaries and ownership/access permissions
+    const roleName = req.user.role?.name;
+    const isOwner = (request.requester && request.requester.toString() === req.user._id.toString()) ||
+                    (request.targetUser && request.targetUser.toString() === req.user._id.toString());
+    const isAdminOrManager = ['Super Admin', 'Organization Admin', 'HR Manager', 'Manager'].includes(roleName);
+
+    if (roleName !== 'Super Admin' && request.organization && req.user.organization && request.organization.toString() !== req.user.organization.toString()) {
+      return res.status(403).json({ error: 'Forbidden. Request belongs to another organization.' });
+    }
+
+    if (!isOwner && !isAdminOrManager) {
+      return res.status(403).json({ error: 'Forbidden. You do not have permission to comment on this request.' });
+    }
+
     request.comments.push({
       user: req.user._id,
       text

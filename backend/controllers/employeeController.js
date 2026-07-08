@@ -181,6 +181,23 @@ const getEmployeeById = async (req, res) => {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
+    const roleName = req.user.role?.name;
+    if (roleName !== 'Super Admin') {
+      // Tenant-isolation check
+      if (employee.organization && req.user.organization && employee.organization.toString() !== req.user.organization.toString()) {
+        return res.status(403).json({ error: 'Forbidden. Employee belongs to another organization.' });
+      }
+
+      // Ownership and Role-scoping checks
+      const isSelf = employee.userRef && employee.userRef.toString() === req.user._id.toString();
+      const isStaffOrAdmin = ['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Manager', 'Team Lead', 'Finance', 'Auditor'].includes(roleName);
+      const isReportingManager = employee.reportingManager && employee.reportingManager.toString() === req.user.employeeRef?.toString();
+
+      if (!isSelf && !isStaffOrAdmin && !isReportingManager) {
+        return res.status(403).json({ error: 'Forbidden. You do not have permission to view this employee record.' });
+      }
+    }
+
     res.json(employee);
   } catch (error) {
     res.status(500).json({ error: 'Server error fetching employee' });

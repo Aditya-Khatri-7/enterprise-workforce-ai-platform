@@ -80,6 +80,8 @@ function App() {
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/unauthorized" element={<Unauthorized />} />
                 <Route path="/account-suspended" element={<DeactivatedPage />} />
+                <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
+                <Route path="/employee-dashboard" element={<Navigate to="/employee/dashboard" replace />} />
 
                 {/* Protected Routes */}
                 <Route element={<ProtectedRoute />}>
