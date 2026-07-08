@@ -24,7 +24,7 @@ const TeamLeadMyTeam = () => {
       ]);
 
       const allEmps = empRes.data || [];
-      const myTeam = allEmps.filter(e => e.reportingManager === tlRef || e.reportingManager?._id === tlRef);
+      const myTeam = allEmps.filter(e => String(e.reportingManager?._id || e.reportingManager) === String(tlRef));
       setEmployees(myTeam);
 
       const allProjs = projRes.data || [];

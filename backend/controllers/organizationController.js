@@ -47,12 +47,12 @@ const createOrganization = async (req, res) => {
     });
     await org.save();
 
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'ORGANIZATION_CREATED',
-      userRef: req.user._id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Created organization: ${name} (${organizationId})`
+      details: `Created organization: ${name} (${organizationId})`,
+      req,
+      organization: org._id
     });
 
     res.status(201).json({ message: 'Organization created successfully', organization: org });
@@ -127,13 +127,13 @@ const assignAdmin = async (req, res) => {
     user.employeeRef = employee._id;
     await user.save();
 
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'USER_CREATED',
-      userRef: req.user._id,
-      targetUserRef: user._id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Assigned initial Admin: ${username} to Organization: ${org.name}`
+      targetUserId: user._id,
+      details: `Assigned initial Admin: ${username} to Organization: ${org.name}`,
+      req,
+      organization: org._id
     });
 
     res.status(201).json({ message: 'Organization Admin assigned successfully', user });
@@ -167,12 +167,12 @@ const updateOrganizationStatus = async (req, res) => {
       await User.updateMany({ organization: org._id }, { isActive: true });
     }
 
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'USER_STATUS_UPDATED',
-      userRef: req.user._id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Updated organization ${org.name} status to: ${status}`
+      details: `Updated organization ${org.name} status to: ${status}`,
+      req,
+      organization: org._id
     });
 
     res.json({ message: `Organization status updated to ${status} successfully`, organization: org });

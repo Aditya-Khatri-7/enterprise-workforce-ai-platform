@@ -109,13 +109,12 @@ const createUser = async (req, res) => {
       await newUser.save();
     }
 
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'USER_CREATED',
-      userRef: req.user._id,
-      targetUserRef: newUser._id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Created user account: ${username} (${roleName})`
+      targetUserId: newUser._id,
+      details: `Created user account: ${username} (${roleName})`,
+      req
     });
 
     res.status(201).json({ message: 'User created successfully', user: newUser });
@@ -159,13 +158,12 @@ const toggleUserStatus = async (req, res) => {
     user.status = isActive ? 'Active' : 'Inactive';
     await user.save();
 
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'USER_STATUS_UPDATED',
-      userRef: req.user._id,
-      targetUserRef: user._id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Updated user status: ${isActive ? 'Active' : 'Inactive'}`
+      targetUserId: user._id,
+      details: `Updated user status: ${isActive ? 'Active' : 'Inactive'}`,
+      req
     });
 
     res.json({ message: 'User status updated successfully', user });
@@ -193,13 +191,12 @@ const unlockUser = async (req, res) => {
     user.failedLoginAttempts = 0;
     await user.save();
 
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'USER_UNLOCKED',
-      userRef: req.user._id,
-      targetUserRef: user._id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Unlocked user account: ${user.username}`
+      targetUserId: user._id,
+      details: `Unlocked user account: ${user.username}`,
+      req
     });
 
     res.json({ message: 'User account unlocked successfully' });
@@ -231,13 +228,12 @@ const resetUserPassword = async (req, res) => {
     user.mustChangePassword = true;
     await user.save();
 
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'USER_PASSWORD_RESET',
-      userRef: req.user._id,
-      targetUserRef: user._id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Reset password for user: ${user.username}`
+      targetUserId: user._id,
+      details: `Reset password for user: ${user.username}`,
+      req
     });
 
     res.json({ message: 'User password reset successfully' });

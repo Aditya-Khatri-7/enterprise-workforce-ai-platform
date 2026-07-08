@@ -16,7 +16,16 @@ const EmployeeProjects = () => {
     try {
       setLoading(true);
       const res = await api.get('/projects');
-      setProjects(res.data || []);
+      const allProjects = res.data || [];
+      const userEmpId = user?.employeeRef?._id || user?.employeeRef;
+
+      const filtered = allProjects.filter(proj => {
+        const isTL = String(proj.assignedTeamLead?._id || proj.assignedTeamLead) === String(userEmpId);
+        const isEmp = proj.employees?.some(e => String(e?._id || e) === String(userEmpId));
+        return isTL || isEmp;
+      });
+
+      setProjects(filtered);
     } catch (err) {
       toast.error('Failed to load project list');
     } finally {
@@ -53,16 +62,24 @@ const EmployeeProjects = () => {
       if (isDemoMode) {
         setProjects(prev => prev.map(p => {
           if (p._id === id) {
+            if (type === 'tl-accept') {
+              return { ...p, tlAcceptedStatus: 'Accepted' };
+            }
             const agreed = type === 'agree' ? [...p.agreedEmployees, empId] : p.agreedEmployees.filter(e => e !== empId);
             const rejected = type === 'reject' ? [...p.rejectedEmployees, empId] : p.rejectedEmployees.filter(e => e !== empId);
             return { ...p, agreedEmployees: agreed, rejectedEmployees: rejected };
           }
           return p;
         }));
-        toast.success(`Project ${type === 'agree' ? 'Accepted' : 'Rejected'} (Demo Mode)!`);
+        toast.success(`Project ${type === 'tl-accept' ? 'Accepted by TL' : type === 'agree' ? 'Accepted' : 'Rejected'} (Demo Mode)!`);
       } else {
-        await api.put(`/projects/${id}/${type}`);
-        toast.success(`Project assignment registered as ${type === 'agree' ? 'agreed' : 'rejected'}!`);
+        if (type === 'tl-accept') {
+          await api.put(`/projects/${id}/tl-accept`);
+          toast.success(`Project accepted successfully by Team Lead!`);
+        } else {
+          await api.put(`/projects/${id}/${type}`);
+          toast.success(`Project assignment registered as ${type === 'agree' ? 'agreed' : 'rejected'}!`);
+        }
         loadProjects();
       }
     } catch (err) {
@@ -121,7 +138,12 @@ const EmployeeProjects = () => {
               </p>
 
               {proj.tlAcceptedStatus === 'Accepted' ? (
-                !hasAgreed && !hasRejected ? (
+                String(proj.assignedTeamLead?._id || proj.assignedTeamLead) === String(user?.employeeRef?._id || user?.employeeRef) ? (
+                  <div className="pt-4 border-t border-slate-100 dark:border-indigo-500/10 flex items-center gap-1.5 text-[10px] text-emerald-650 dark:text-emerald-400">
+                    <Check className="h-3.5 w-3.5" />
+                    You have accepted this project. Awaiting team developer agreements ({proj.agreedEmployees?.length || 0} / {proj.employees?.length || 0}).
+                  </div>
+                ) : !hasAgreed && !hasRejected ? (
                   <div className="pt-4 border-t border-slate-100 dark:border-indigo-500/10 flex justify-end gap-3">
                     <button
                       onClick={() => handleAction(proj._id, 'reject')}
@@ -145,9 +167,21 @@ const EmployeeProjects = () => {
                   </div>
                 )
               ) : (
-                <div className="pt-4 border-t border-slate-100 dark:border-indigo-500/10 text-[10px] text-amber-500 italic">
-                  Waiting for your Team Lead to accept the project before team verification begins.
-                </div>
+                String(proj.assignedTeamLead?._id || proj.assignedTeamLead) === String(user?.employeeRef?._id || user?.employeeRef) ? (
+                  <div className="pt-4 border-t border-slate-100 dark:border-indigo-500/10 flex justify-end gap-3">
+                    <button
+                      onClick={() => handleAction(proj._id, 'tl-accept')}
+                      disabled={actioning}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs cursor-pointer border-0"
+                    >
+                      Accept Project (as Team Lead)
+                    </button>
+                  </div>
+                ) : (
+                  <div className="pt-4 border-t border-slate-100 dark:border-indigo-500/10 text-[10px] text-amber-500 italic">
+                    Waiting for your Team Lead to accept the project before team verification begins.
+                  </div>
+                )
               )}
             </div>
           );

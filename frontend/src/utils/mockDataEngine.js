@@ -23,7 +23,8 @@ function initializeData() {
   // 1. Organizations
   organizations = [
     { _id: 'org1', name: 'TechNova Global Pvt Ltd', code: 'TECHNOVA', status: 'Active', adminUser: 'admin1', address: 'Bangalore Core HQ', createdAt: new Date() },
-    { _id: 'org2', name: 'NovaSoft Solutions', code: 'NOVASOFT', status: 'Active', adminUser: 'admin2', address: 'San Francisco Hub', createdAt: new Date() }
+    { _id: 'org2', name: 'NovaSoft Solutions', code: 'NOVASOFT', status: 'Active', adminUser: 'admin2', address: 'San Francisco Hub', createdAt: new Date() },
+    { _id: 'org_aditech', name: 'AdiTech', code: 'ADITECH', status: 'Active', adminUser: 'aditech_admin', address: 'AdiTech India Core HQ', createdAt: new Date() }
   ];
 
   // 2. Users
@@ -36,7 +37,15 @@ function initializeData() {
     { _id: 'u6', username: 'employee_user', role: { name: 'Employee' }, isActive: true, email: 'staff@technova.com' },
     { _id: 'u7', username: 'finance_exec', role: { name: 'Finance' }, isActive: true, email: 'finance@technova.com' },
     { _id: 'u8', username: 'it_admin', role: { name: 'IT Administrator' }, isActive: true, email: 'it@technova.com' },
-    { _id: 'u9', username: 'auditor_user', role: { name: 'Auditor' }, isActive: true, email: 'auditor@technova.com' }
+    { _id: 'u9', username: 'auditor_user', role: { name: 'Auditor' }, isActive: true, email: 'auditor@technova.com' },
+    { _id: 'u_aditech_admin', username: 'aditech_admin', role: { name: 'Organization Admin' }, isActive: true, email: 'admin@aditech.com', organization: { _id: 'org_aditech', name: 'AdiTech' }, status: 'Active' },
+    { _id: 'u_aditech_hr', username: 'aditech_hr', role: { name: 'HR Manager' }, isActive: true, email: 'hr@aditech.com', organization: { _id: 'org_aditech', name: 'AdiTech' }, status: 'Active' },
+    { _id: 'u_aditech_manager', username: 'aditech_manager', role: { name: 'Manager' }, isActive: true, email: 'manager@aditech.com', organization: { _id: 'org_aditech', name: 'AdiTech' }, status: 'Active' },
+    { _id: 'u_aditech_lead', username: 'aditech_lead', role: { name: 'Team Lead' }, isActive: true, email: 'lead@aditech.com', organization: { _id: 'org_aditech', name: 'AdiTech' }, status: 'Active' },
+    { _id: 'u_aditech_it', username: 'aditech_it', role: { name: 'IT Administrator' }, isActive: true, email: 'it@aditech.com', organization: { _id: 'org_aditech', name: 'AdiTech' }, status: 'Active' },
+    { _id: 'u_aditech_auditor', username: 'aditech_auditor', role: { name: 'Auditor' }, isActive: true, email: 'auditor@aditech.com', organization: { _id: 'org_aditech', name: 'AdiTech' }, status: 'Active' },
+    { _id: 'u_aditech_finance', username: 'aditech_finance', role: { name: 'Finance' }, isActive: true, email: 'finance@aditech.com', organization: { _id: 'org_aditech', name: 'AdiTech' }, status: 'Active' },
+    { _id: 'u_aditech_employee', username: 'aditech_employee', role: { name: 'Employee' }, isActive: true, email: 'employee@aditech.com', organization: { _id: 'org_aditech', name: 'AdiTech' }, status: 'Active' }
   ];
 
   // 3. Departments
@@ -54,7 +63,15 @@ function initializeData() {
     { _id: 'emp2', firstName: 'Marcus', lastName: 'Vane', email: 'marcus.vane@technova.com', employeeId: 'EMP1002', phone: '+1 415-321-4456', department: 'Operations & Scaling', designation: 'Chief Info Security Officer', userRef: users[2], status: 'Active' },
     { _id: 'emp3', firstName: 'Sarah', lastName: 'Jenkins', email: 'sarah.jenkins@technova.com', employeeId: 'EMP1003', phone: '+1 415-321-4457', department: 'Human Resources', designation: 'VP of People Operations', userRef: users[3], status: 'Active' },
     { _id: 'emp4', firstName: 'David', lastName: 'Miller', email: 'david.miller@technova.com', employeeId: 'EMP1004', phone: '+1 415-321-4458', department: 'Finance & Accounts', designation: 'Director of Billing', userRef: users[6], status: 'Active' },
-    { _id: 'emp5', firstName: 'Alex', lastName: 'Kovac', email: 'alex.kovac@technova.com', employeeId: 'EMP1005', phone: '+1 415-321-4459', department: 'Customer Success', designation: 'Technical Support Lead', userRef: users[5], status: 'Active' }
+    { _id: 'emp5', firstName: 'Alex', lastName: 'Kovac', email: 'alex.kovac@technova.com', employeeId: 'EMP1005', phone: '+1 415-321-4459', department: 'Customer Success', designation: 'Technical Support Lead', userRef: users[5], status: 'Active' },
+    { _id: 'emp_aditech_admin', firstName: 'AdiTech', lastName: 'Admin', email: 'admin@aditech.com', employeeId: 'EMP2001', department: 'Management', designation: 'Organization Admin', userRef: { _id: 'u_aditech_admin' }, status: 'Active' },
+    { _id: 'emp_aditech_hr', firstName: 'AdiTech', lastName: 'HR', email: 'hr@aditech.com', employeeId: 'EMP2002', department: 'HR', designation: 'HR Manager', userRef: { _id: 'u_aditech_hr' }, status: 'Active' },
+    { _id: 'emp_aditech_manager', firstName: 'AdiTech', lastName: 'Manager', email: 'manager@aditech.com', employeeId: 'EMP2003', department: 'Engineering', designation: 'Department Manager', userRef: { _id: 'u_aditech_manager' }, status: 'Active' },
+    { _id: 'emp_aditech_lead', firstName: 'AdiTech', lastName: 'Lead', email: 'lead@aditech.com', employeeId: 'EMP2004', department: 'Engineering', designation: 'Team Lead', userRef: { _id: 'u_aditech_lead' }, status: 'Active' },
+    { _id: 'emp_aditech_it', firstName: 'AdiTech', lastName: 'IT', email: 'it@aditech.com', employeeId: 'EMP2005', department: 'IT', designation: 'IT Administrator', userRef: { _id: 'u_aditech_it' }, status: 'Active' },
+    { _id: 'emp_aditech_auditor', firstName: 'AdiTech', lastName: 'Auditor', email: 'auditor@aditech.com', employeeId: 'EMP2006', department: 'Security', designation: 'Auditor', userRef: { _id: 'u_aditech_auditor' }, status: 'Active' },
+    { _id: 'emp_aditech_finance', firstName: 'AdiTech', lastName: 'Finance', email: 'finance@aditech.com', employeeId: 'EMP2007', department: 'Finance', designation: 'Finance Executive', userRef: { _id: 'u_aditech_finance' }, status: 'Active' },
+    { _id: 'emp_aditech_employee', firstName: 'AdiTech', lastName: 'Employee', email: 'employee@aditech.com', employeeId: 'EMP2008', department: 'Engineering', designation: 'Software Engineer', userRef: { _id: 'u_aditech_employee' }, status: 'Active' }
   ];
 
   // 5. Audit Logs

@@ -103,7 +103,29 @@ const getAvailableLeads = async (req, res) => {
   }
 };
 
+const getMyTeam = async (req, res) => {
+  try {
+    const emp = await Employee.findOne({ userRef: req.user._id });
+    if (!emp) return res.json([]);
+
+    if (!emp.reportingManager) {
+      return res.json([emp]);
+    }
+
+    const team = await Employee.find({
+      reportingManager: emp.reportingManager,
+      status: 'Active'
+    });
+
+    res.json(team);
+  } catch (error) {
+    console.error('Get My Team Error:', error);
+    res.status(500).json({ error: 'Server error fetching team members' });
+  }
+};
+
 module.exports = {
   reassignEmployee,
-  getAvailableLeads
+  getAvailableLeads,
+  getMyTeam
 };

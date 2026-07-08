@@ -435,6 +435,41 @@ const rejectProject = async (req, res) => {
   }
 };
 
+const updateProjectStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { employeeIds } = req.body;
+
+    if (!Array.isArray(employeeIds)) {
+      return res.status(400).json({ error: 'employeeIds must be an array' });
+    }
+
+    const project = await Project.findById(id);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (req.user.role?.name === 'Team Lead') {
+      if (String(project.assignedTeamLead) !== String(req.user.employeeRef)) {
+        return res.status(403).json({ error: 'You are not the assigned Team Lead for this project' });
+      }
+    }
+
+    project.employees = employeeIds;
+    if (project.agreedEmployees) {
+      project.agreedEmployees = project.agreedEmployees.filter(e => employeeIds.includes(String(e)));
+    }
+    if (project.rejectedEmployees) {
+      project.rejectedEmployees = project.rejectedEmployees.filter(e => employeeIds.includes(String(e)));
+    }
+
+    await project.save();
+    res.json({ message: 'Project staff updated successfully', project });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   getProjects,
   createProject,
@@ -450,5 +485,6 @@ module.exports = {
   agreeToTeamRequest,
   approveTeamRequest,
   tlAcceptProject,
-  rejectProject
+  rejectProject,
+  updateProjectStaff
 };

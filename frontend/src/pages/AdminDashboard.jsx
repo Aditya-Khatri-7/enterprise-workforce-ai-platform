@@ -84,7 +84,15 @@ const SuperAdminDashboard = () => {
   const [loading, setLoading] = useState(!isDemoMode);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'reactivations'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'reactivations' | 'admins'
+
+  // Admin Management tab states
+  const [filterOrg, setFilterOrg] = useState('All');
+  const [sortField, setSortField] = useState('username');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [showCreateAdminModal, setShowCreateAdminModal] = useState(false);
+  const [newAdminData, setNewAdminData] = useState({ username: '', email: '', password: 'ewp@123', name: '', organizationId: '' });
+  const [submittingAdmin, setSubmittingAdmin] = useState(false);
 
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -176,6 +184,51 @@ const SuperAdminDashboard = () => {
       toast.error(err.response?.data?.error || 'Failed to create organization.');
     } finally {
       setSubmittingOrg(false);
+    }
+  };
+
+  const handleCreateAdmin = async (e) => {
+    e.preventDefault();
+    if (!newAdminData.username || !newAdminData.email || !newAdminData.password || !newAdminData.organizationId || !newAdminData.name) {
+      toast.warning('All fields are required.');
+      return;
+    }
+
+    if (isDemoMode) {
+      const selectedOrg = organizations.find(o => String(o._id) === String(newAdminData.organizationId));
+      const mockAdmin = {
+        _id: `u_admin_${Date.now()}`,
+        username: newAdminData.username,
+        email: newAdminData.email,
+        role: { name: 'Organization Admin' },
+        organization: selectedOrg ? { _id: selectedOrg._id, name: selectedOrg.name } : null,
+        isActive: true,
+        status: 'Active'
+      };
+      setUsers([...users, mockAdmin]);
+      toast.success('Admin created successfully (Demo Mode)!');
+      setShowCreateAdminModal(false);
+      setNewAdminData({ username: '', email: '', password: 'ewp@123', name: '', organizationId: '' });
+      return;
+    }
+
+    try {
+      setSubmittingAdmin(true);
+      await api.post('/organizations/assign-admin', {
+        organizationId: newAdminData.organizationId,
+        name: newAdminData.name,
+        email: newAdminData.email,
+        password: newAdminData.password
+      });
+      toast.success('Admin created and assigned successfully!');
+      setShowCreateAdminModal(false);
+      setNewAdminData({ username: '', email: '', password: 'ewp@123', name: '', organizationId: '' });
+      await fetchRealData();
+    } catch (err) {
+      console.error('Create admin failed:', err);
+      toast.error(err.response?.data?.error || 'Failed to create admin.');
+    } finally {
+      setSubmittingAdmin(false);
     }
   };
 
@@ -371,6 +424,38 @@ const SuperAdminDashboard = () => {
     u.role?.name === 'Organization Admin'
   );
 
+  const adminUsers = useMemo(() => {
+    return users.filter(u => u.role?.name === 'Organization Admin' && u.status !== 'Deleted');
+  }, [users]);
+
+  const filteredAdmins = useMemo(() => {
+    let result = [...adminUsers];
+    if (filterOrg !== 'All') {
+      result = result.filter(u => String(u.organization?._id || u.organization) === filterOrg);
+    }
+    // Sorting
+    result.sort((a, b) => {
+      let valA = '';
+      let valB = '';
+      if (sortField === 'username') {
+        valA = a.username || '';
+        valB = b.username || '';
+      } else if (sortField === 'email') {
+        valA = a.email || '';
+        valB = b.email || '';
+      } else if (sortField === 'organization') {
+        const orgA = organizations.find(o => String(o._id) === String(a.organization?._id || a.organization));
+        const orgB = organizations.find(o => String(o._id) === String(b.organization?._id || b.organization));
+        valA = orgA?.name || '';
+        valB = orgB?.name || '';
+      }
+      if (valA.toLowerCase() < valB.toLowerCase()) return sortOrder === 'asc' ? -1 : 1;
+      if (valA.toLowerCase() > valB.toLowerCase()) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return result;
+  }, [adminUsers, filterOrg, sortField, sortOrder, organizations]);
+
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center space-x-2">
@@ -400,6 +485,12 @@ const SuperAdminDashboard = () => {
               {pendingReactivationRequests.length}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setActiveTab('admins')}
+          className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeTab === 'admins' ? 'border-purple-500 text-purple-600 dark:text-purple-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+        >
+          Admin Management
         </button>
       </div>
 
@@ -685,6 +776,139 @@ const SuperAdminDashboard = () => {
         </div>
       )}
 
+      {activeTab === 'admins' && (
+        <div className="glass-card border border-purple-200 dark:border-purple-500/20 rounded-2xl p-5 space-y-6">
+          <div className="flex flex-wrap justify-between items-center gap-4">
+            <div>
+              <h3 className="text-xs font-black text-purple-700 dark:text-purple-400 uppercase tracking-widest">
+                Organization Administrators
+              </h3>
+              <p className="text-[10px] text-slate-400 dark:text-slate-455 mt-1">
+                Manage and audit admins across all organizations
+              </p>
+            </div>
+            
+            <div className="flex flex-wrap gap-3 items-center">
+              {/* Filter */}
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filter Org:</label>
+                <select
+                  value={filterOrg}
+                  onChange={(e) => setFilterOrg(e.target.value)}
+                  className="text-xs p-1.5 bg-slate-50 dark:bg-[#0B1023] border border-slate-200 dark:border-[#1F2647] rounded-lg text-slate-900 dark:text-white focus:outline-none"
+                >
+                  <option value="All">All Organizations</option>
+                  {organizations.map(o => (
+                    <option key={o._id} value={o._id}>{o.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort field */}
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sort By:</label>
+                <select
+                  value={sortField}
+                  onChange={(e) => setSortField(e.target.value)}
+                  className="text-xs p-1.5 bg-slate-50 dark:bg-[#0B1023] border border-slate-200 dark:border-[#1F2647] rounded-lg text-slate-900 dark:text-white focus:outline-none"
+                >
+                  <option value="username">Username</option>
+                  <option value="email">Email</option>
+                  <option value="organization">Organization</option>
+                </select>
+              </div>
+
+              {/* Sort order */}
+              <button
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="p-1.5 rounded-lg border border-slate-200 dark:border-[#1F2647] bg-slate-50 dark:bg-[#0B1023] text-slate-400 hover:text-white cursor-pointer text-xs font-bold"
+              >
+                {sortOrder === 'asc' ? '▲ ASC' : '▼ DESC'}
+              </button>
+
+              {/* Add Admin */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowCreateAdminModal(true)}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white btn-premium-gradient flex items-center gap-1 shadow-md cursor-pointer border-0"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Create Admin</span>
+              </motion.button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
+              <thead>
+                <tr className="text-slate-500 dark:text-slate-400 text-left">
+                  <th className="pb-3 font-semibold">Username</th>
+                  <th className="pb-3 font-semibold">Email</th>
+                  <th className="pb-3 font-semibold">Organization</th>
+                  <th className="pb-3 font-semibold">Status</th>
+                  <th className="pb-3 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200">
+                {filteredAdmins.map((adm, i) => {
+                  const orgObj = organizations.find(o => String(o._id) === String(adm.organization?._id || adm.organization));
+                  const orgName = orgObj ? orgObj.name : 'Unknown';
+                  return (
+                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                      <td className="py-3 font-bold text-slate-900 dark:text-white">{adm.username}</td>
+                      <td className="py-3 font-mono">{adm.email}</td>
+                      <td className="py-3 font-semibold text-purple-650 dark:text-purple-300">{orgName}</td>
+                      <td className="py-3">
+                        <span className={`px-2 py-0.5 inline-flex text-[8px] leading-5 font-black uppercase tracking-wider rounded border ${
+                          adm.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 
+                          adm.status === 'Suspended' ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20' :
+                          'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                        }`}>
+                          {adm.status}
+                        </span>
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex gap-2 justify-end">
+                          {adm.status !== 'Suspended' ? (
+                            <button
+                              onClick={() => setSuspendUserTarget(adm)}
+                              className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-lg cursor-pointer"
+                            >
+                              Suspend
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleReviewReactivation(adm._id, 'Approve')}
+                              className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-lg cursor-pointer"
+                            >
+                              Reactivate
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setDeleteUserTarget(adm)}
+                            className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 rounded-lg cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredAdmins.length === 0 && (
+                  <tr>
+                    <td colSpan="5" className="py-8 text-center text-slate-500 dark:text-slate-400">
+                      No administrators found matching criteria.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Super Admin Modals */}
       <AnimatePresence>
         {/* Assign Admin Modal */}
@@ -731,6 +955,95 @@ const SuperAdminDashboard = () => {
                   className="px-4 py-2 text-xs font-bold uppercase text-white btn-premium-gradient rounded-xl disabled:opacity-50 border-0 cursor-pointer"
                 >
                   {assigningAdmin ? 'Assigning...' : 'Assign as Admin'}
+                </button>
+              </div>
+            </form>
+          </LocalModal>
+        )}
+
+        {/* Create Admin Modal */}
+        {showCreateAdminModal && (
+          <LocalModal title="Create New Organization Admin" onClose={() => setShowCreateAdminModal(false)}>
+            <form onSubmit={handleCreateAdmin} className="space-y-4">
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. John Doe"
+                  value={newAdminData.name}
+                  onChange={(e) => setNewAdminData({ ...newAdminData, name: e.target.value })}
+                  className="w-full text-xs p-2.5 bg-slate-50 dark:bg-[#0B1023]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Username</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. johndoe"
+                  value={newAdminData.username}
+                  onChange={(e) => setNewAdminData({ ...newAdminData, username: e.target.value })}
+                  className="w-full text-xs p-2.5 bg-slate-50 dark:bg-[#0B1023]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. john@company.com"
+                  value={newAdminData.email}
+                  onChange={(e) => setNewAdminData({ ...newAdminData, email: e.target.value })}
+                  className="w-full text-xs p-2.5 bg-slate-50 dark:bg-[#0B1023]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Password</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="e.g. ewp@123"
+                  value={newAdminData.password}
+                  onChange={(e) => setNewAdminData({ ...newAdminData, password: e.target.value })}
+                  className="w-full text-xs p-2.5 bg-slate-50 dark:bg-[#0B1023]/60 border border-slate-200 dark:border-[#1F2647] rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Select Organization</label>
+                <select
+                  required
+                  value={newAdminData.organizationId}
+                  onChange={(e) => setNewAdminData({ ...newAdminData, organizationId: e.target.value })}
+                  className="w-full text-xs p-2.5 bg-slate-50 dark:bg-[#0B1023] border border-slate-200 dark:border-[#1F2647] rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                >
+                  <option value="">-- Choose Organization --</option>
+                  {organizations.map(o => (
+                    <option key={o._id} value={o._id}>
+                      {o.name} ({o.organizationId})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-slate-100 dark:border-indigo-500/15">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateAdminModal(false)}
+                  className="px-4 py-2 text-xs font-bold uppercase text-slate-400 hover:text-white border-0 bg-transparent cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingAdmin}
+                  className="px-4 py-2 text-xs font-bold uppercase text-white btn-premium-gradient rounded-xl disabled:opacity-50 border-0 cursor-pointer"
+                >
+                  {submittingAdmin ? 'Creating...' : 'Create Admin'}
                 </button>
               </div>
             </form>
@@ -1583,37 +1896,13 @@ const OrgAdminDashboard = () => {
 const HRManagerDashboard = () => {
   const { user } = useContext(AuthContext);
   const { isDemoMode } = useContext(DemoContext);
-  const [pipeline] = useState({
-    Applied: 105,
-    Interview: 42,
-    Offer: 15,
-    Joined: 9,
-    Rejected: 33
-  });
-
-  const [leaves, setLeaves] = useState([
+  const [leaves, setLeaves] = useState(isDemoMode ? [
     { _id: 'lv1', name: 'Riya Sharma', type: 'Sick Leave', range: '2026-07-06 to 2026-07-08', status: 'Pending' },
     { _id: 'lv2', name: 'Karan Patel', type: 'Earned Leave', range: '2026-07-12 to 2026-07-15', status: 'Pending' },
     { _id: 'lv3', name: 'Priya Singh', type: 'Casual Leave', range: '2026-07-20 to 2026-07-21', status: 'Pending' }
-  ]);
+  ] : []);
 
-  const [newJoiners] = useState([
-    { name: 'Sarah Jenkins', dept: 'Engineering', date: '2026-07-01', status: 'Completed onboarding' },
-    { name: 'Elena Rostova', dept: 'IT Operations', date: '2026-07-01', status: 'Access provisioned' },
-    { name: 'Alex Kovac', dept: 'Finance Systems', date: '2026-07-02', status: 'Training Phase' },
-    { name: 'Marcus Vane', dept: 'Information Security', date: '2026-07-05', status: 'Profile Active' },
-    { name: 'Karan Patel', dept: 'Engineering', date: '2026-07-05', status: 'Laptops Configured' }
-  ]);
-
-  const attendanceAlerts = [
-    { name: 'Rohit Das', rate: '71%', icon: '📉' },
-    { name: 'Sneha Gupta', rate: '74%', icon: '📉' }
-  ];
-
-  const handleLeaveAction = (id, action) => {
-    setLeaves(leaves.map(l => l._id === id ? { ...l, status: action } : l));
-    toast.success(`Leave request ${action.toLowerCase()}!`);
-  };
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
 
   // NEW HR STATES
   const navigate = useNavigate();
@@ -1625,6 +1914,110 @@ const HRManagerDashboard = () => {
   const [jobs, setJobs] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const computedPipeline = useMemo(() => {
+    if (isDemoMode) {
+      return {
+        Applied: 105,
+        Interview: 42,
+        Offer: 15,
+        Joined: 9,
+        Rejected: 33
+      };
+    }
+    const counts = { Applied: 0, Interview: 0, Offer: 0, Joined: 0, Rejected: 0 };
+    candidates.forEach(c => {
+      const status = c.status;
+      if (status === 'Applied') counts.Applied++;
+      else if (['Resume Screening', 'Technical Interview', 'HR Interview'].includes(status)) counts.Interview++;
+      else if (status === 'Offered') counts.Offer++;
+      else if (status === 'Hired') counts.Joined++;
+      else if (status === 'Rejected') counts.Rejected++;
+    });
+    return counts;
+  }, [isDemoMode, candidates]);
+
+  const computedNewJoiners = useMemo(() => {
+    if (isDemoMode) {
+      return [
+        { name: 'Sarah Jenkins', dept: 'Engineering', date: '2026-07-01', status: 'Completed onboarding' },
+        { name: 'Elena Rostova', dept: 'IT Operations', date: '2026-07-01', status: 'Access provisioned' },
+        { name: 'Alex Kovac', dept: 'Finance Systems', date: '2026-07-02', status: 'Training Phase' },
+        { name: 'Marcus Vane', dept: 'Information Security', date: '2026-07-05', status: 'Profile Active' },
+        { name: 'Karan Patel', dept: 'Engineering', date: '2026-07-05', status: 'Laptops Configured' }
+      ];
+    }
+    return [...employees]
+      .sort((a, b) => new Date(b.joiningDate) - new Date(a.joiningDate))
+      .slice(0, 5)
+      .map(emp => ({
+        name: `${emp.firstName} ${emp.lastName}`,
+        dept: emp.department,
+        date: emp.joiningDate ? new Date(emp.joiningDate).toISOString().split('T')[0] : 'N/A',
+        status: emp.status === 'Active' ? 'Profile Active' : emp.status
+      }));
+  }, [isDemoMode, employees]);
+
+  const computedAttendanceAlerts = useMemo(() => {
+    if (isDemoMode) {
+      return [
+        { name: 'Rohit Das', rate: '71%', icon: '📉' },
+        { name: 'Sneha Gupta', rate: '74%', icon: '📉' }
+      ];
+    }
+    const empStats = {};
+    employees.forEach(emp => {
+      empStats[emp._id] = { name: `${emp.firstName} ${emp.lastName}`, total: 0, presentCount: 0 };
+    });
+    attendanceLogs.forEach(log => {
+      const empId = log.employee?._id || log.employee;
+      if (empStats[empId]) {
+        empStats[empId].total++;
+        if (['Present', 'Work From Home'].includes(log.status)) {
+          empStats[empId].presentCount++;
+        }
+      }
+    });
+    const alerts = [];
+    Object.keys(empStats).forEach(empId => {
+      const { name, total, presentCount } = empStats[empId];
+      if (total > 0) {
+        const rate = Math.round((presentCount / total) * 100);
+        if (rate < 75) {
+          alerts.push({ name, rate: `${rate}%`, icon: '📉' });
+        }
+      }
+    });
+    return alerts.slice(0, 3);
+  }, [isDemoMode, employees, attendanceLogs]);
+
+  const computedLeavesForDisplay = useMemo(() => {
+    if (isDemoMode) {
+      return leaves;
+    }
+    return leaves.map(l => ({
+      _id: l._id,
+      name: l.employee ? `${l.employee.firstName} ${l.employee.lastName}` : 'Unknown',
+      type: `${l.type} Leave`,
+      range: `${l.startDate ? new Date(l.startDate).toISOString().split('T')[0] : ''} to ${l.endDate ? new Date(l.endDate).toISOString().split('T')[0] : ''}`,
+      status: l.status
+    }));
+  }, [isDemoMode, leaves]);
+
+  const handleLeaveAction = async (id, action) => {
+    if (isDemoMode) {
+      setLeaves(leaves.map(l => l._id === id ? { ...l, status: action } : l));
+      toast.success(`Leave request ${action.toLowerCase()}! (Demo Mode)`);
+      return;
+    }
+    try {
+      await api.put(`/leaves/${id}/status`, { status: action });
+      toast.success(`Leave request ${action.toLowerCase()} successfully!`);
+      await loadHRData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || `Failed to update leave request status`);
+    }
+  };
   
   // Modals state
   const [showPostJobModal, setShowPostJobModal] = useState(false);
@@ -1656,13 +2049,15 @@ const HRManagerDashboard = () => {
   const loadHRData = async () => {
     try {
       setLoading(true);
-      const [userRes, empRes, deptRes, reportRes, jobsRes, candidatesRes] = await Promise.all([
+      const [userRes, empRes, deptRes, reportRes, jobsRes, candidatesRes, leavesRes, attendanceRes] = await Promise.all([
         api.get('/users').catch(() => ({ data: [] })),
         api.get('/employees').catch(() => ({ data: [] })),
         api.get('/departments').catch(() => ({ data: [] })),
         api.get('/progress-reports').catch(() => ({ data: [] })),
         api.get('/recruitment/jobs').catch(() => ({ data: [] })),
-        api.get('/recruitment/candidates').catch(() => ({ data: [] }))
+        api.get('/recruitment/candidates').catch(() => ({ data: [] })),
+        api.get('/leaves').catch(() => ({ data: [] })),
+        api.get('/attendance/history').catch(() => ({ data: [] }))
       ]);
       setUsers(userRes.data || []);
       setEmployees(empRes.data || []);
@@ -1670,6 +2065,8 @@ const HRManagerDashboard = () => {
       setProgressReports(reportRes.data || []);
       setJobs(jobsRes.data || []);
       setCandidates(candidatesRes.data || []);
+      setLeaves(leavesRes.data || []);
+      setAttendanceLogs(attendanceRes.data || []);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load HR administrative records');
@@ -1920,20 +2317,20 @@ const HRManagerDashboard = () => {
         <>
           {/* Grid KPI Metrics */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Recruitment Pipeline" value={candidates.length > 0 ? `${candidates.length} Candidates` : "180 Candidates"} colorAccent="teal" icon={Users} desc="All Active Openings" />
-            <StatCard label="Active Leaves" value="12 Members" colorAccent="teal" icon={Calendar} desc="This Week Roster" />
-            <StatCard label="Open Job Postings" value={jobs.length > 0 ? `${jobs.length} Roles` : "6 Roles"} colorAccent="teal" icon={Briefcase} desc="3 Referral Bonuses Active" />
-            <StatCard label="Monthly New Hires" value="9 Onboarded" colorAccent="teal" icon={Award} desc="2 Pending Verification" />
+            <StatCard label="Recruitment Pipeline" value={isDemoMode ? (candidates.length > 0 ? `${candidates.length} Candidates` : "180 Candidates") : `${candidates.length} Candidates`} colorAccent="teal" icon={Users} desc="All Active Openings" />
+            <StatCard label="Active Leaves" value={isDemoMode ? "12 Members" : `${leaves.filter(l => l.status === 'Approved').length} Member(s)`} colorAccent="teal" icon={Calendar} desc="This Week Roster" />
+            <StatCard label="Open Job Postings" value={isDemoMode ? (jobs.length > 0 ? `${jobs.length} Roles` : "6 Roles") : `${jobs.length} Roles`} colorAccent="teal" icon={Briefcase} desc="All Openings" />
+            <StatCard label="Monthly New Hires" value={isDemoMode ? "9 Onboarded" : `${employees.filter(emp => emp.joiningDate && (new Date() - new Date(emp.joiningDate)) <= 30 * 24 * 60 * 60 * 1000).length} Onboarded`} colorAccent="teal" icon={Award} desc="Joined Last 30 Days" />
           </div>
 
           {/* Recruitment Pipeline Banner */}
           <div className="glass-card border border-teal-500/20 rounded-2xl p-5">
             <h3 className="text-xs font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest mb-4">Candidate Recruitment Pipeline</h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              {Object.entries(pipeline).map(([key, val], idx) => (
+              {Object.entries(computedPipeline).map(([key, val], idx) => (
                 <div key={idx} className="p-4 rounded-xl border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/45 text-center relative overflow-hidden">
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-black tracking-widest">{key}</p>
-                  <p className="text-2xl font-black text-teal-750 dark:text-teal-300 mt-2">{val}</p>
+                  <p className="text-2xl font-black text-teal-755 dark:text-teal-300 mt-2">{val}</p>
                   <div className="absolute top-0 right-0 h-10 w-10 bg-teal-500/5 rounded-full blur-md" />
                 </div>
               ))}
@@ -1946,11 +2343,11 @@ const HRManagerDashboard = () => {
               {/* Leave approvals */}
               <div className="glass-card border border-teal-500/20 rounded-2xl p-5">
                 <h3 className="text-xs font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest mb-4">Pending Leave Approvals</h3>
-                {leaves.filter(l => l.status === 'Pending').length === 0 ? (
+                {computedLeavesForDisplay.filter(l => l.status === 'Pending').length === 0 ? (
                   <p className="text-xs text-slate-450 italic py-4 text-center">No pending leave approvals detected.</p>
                 ) : (
                   <div className="space-y-3">
-                    {leaves.filter(l => l.status === 'Pending').map((l, i) => (
+                    {computedLeavesForDisplay.filter(l => l.status === 'Pending').map((l, i) => (
                       <div key={i} className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/30 rounded-xl flex items-center justify-between text-xs">
                         <div>
                           <p className="font-bold text-slate-900 dark:text-white">{l.name}</p>
@@ -1958,7 +2355,7 @@ const HRManagerDashboard = () => {
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => handleLeaveAction(l._id, 'Approved')} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1 rounded transition-all border-0 cursor-pointer">Approve</button>
-                          <button onClick={() => handleLeaveAction(l._id, 'Rejected')} className="bg-red-500 hover:bg-red-650 text-white font-bold text-[9px] px-2.5 py-1 rounded transition-all border-0 cursor-pointer">Reject</button>
+                          <button onClick={() => handleLeaveAction(l._id, 'Rejected')} className="bg-red-50 hover:bg-red-650 text-white font-bold text-[9px] px-2.5 py-1 rounded transition-all border-0 cursor-pointer">Reject</button>
                         </div>
                       </div>
                     ))}
@@ -1980,16 +2377,22 @@ const HRManagerDashboard = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200">
-                      {newJoiners.map((j, i) => (
-                        <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
-                          <td className="py-2.5 font-bold">{j.name}</td>
-                          <td className="py-2.5 text-teal-700 dark:text-teal-300 font-semibold">{j.dept}</td>
-                          <td className="py-2.5 font-mono">{j.date}</td>
-                          <td className="py-2.5">
-                            <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-650 dark:text-teal-400 border border-teal-500/20 text-[9px] uppercase font-black">{j.status}</span>
-                          </td>
+                      {computedNewJoiners.length === 0 ? (
+                        <tr>
+                          <td colSpan="4" className="py-4 text-center italic text-slate-500">No new joiners this month.</td>
                         </tr>
-                      ))}
+                      ) : (
+                        computedNewJoiners.map((j, i) => (
+                          <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                            <td className="py-2.5 font-bold">{j.name}</td>
+                            <td className="py-2.5 text-teal-700 dark:text-teal-300 font-semibold">{j.dept}</td>
+                            <td className="py-2.5 font-mono">{j.date}</td>
+                            <td className="py-2.5">
+                              <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-650 dark:text-teal-400 border border-teal-500/20 text-[9px] uppercase font-black">{j.status}</span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2010,18 +2413,22 @@ const HRManagerDashboard = () => {
               <div className="glass-card border border-teal-500/20 rounded-2xl p-5">
                 <h3 className="text-xs font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest mb-4">Critical Attendance Alerts</h3>
                 <div className="space-y-3">
-                  {attendanceAlerts.map((a, idx) => (
-                    <div key={idx} className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{a.icon}</span>
-                        <div>
-                          <p className="font-bold text-slate-900 dark:text-white">{a.name}</p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Attendance drops below threshold</p>
+                  {computedAttendanceAlerts.length === 0 ? (
+                    <p className="text-xs text-slate-450 italic py-4 text-center">No critical attendance drops detected.</p>
+                  ) : (
+                    computedAttendanceAlerts.map((a, idx) => (
+                      <div key={idx} className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{a.icon}</span>
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-white">{a.name}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Attendance drops below threshold</p>
+                          </div>
                         </div>
+                        <span className="font-bold text-red-650 dark:text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">{a.rate} This Month</span>
                       </div>
-                      <span className="font-bold text-red-650 dark:text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">{a.rate} This Month</span>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -2592,6 +2999,7 @@ const HRManagerDashboard = () => {
 
 const ManagerDashboard = () => {
   const { isDemoMode } = useContext(DemoContext);
+  const { user } = useContext(AuthContext);
   const { progressStore } = useContext(DemoProgressContext);
   const [activeTab, setActiveTab] = useState('supervised'); // 'supervised' | 'projects' | 'project-requests' | 'team-requests' | 'leaves'
   const [expandedTeam, setExpandedTeam] = useState(null); // 'arjun' | 'sneha' | null
@@ -2611,23 +3019,36 @@ const ManagerDashboard = () => {
   const [assignProjectData, setAssignProjectData] = useState({ projectId: '', teamLeadId: '' });
 
   // Pending leaves
-  const [leaves, setLeaves] = useState([
-    { id: 1, name: 'Riya Sharma', type: 'Sick Leave', dates: '2026-07-06 to 2026-07-08', status: 'Pending' },
-    { id: 2, name: 'Amit Verma', type: 'Earned Leave', dates: '2026-07-10 to 2026-07-12', status: 'Pending' }
-  ]);
+  const [leaves, setLeaves] = useState([]);
+
+  const displayLeaves = useMemo(() => {
+    if (isDemoMode) {
+      return leaves;
+    }
+    return leaves.map(l => ({
+      id: l._id,
+      _id: l._id,
+      name: l.employee ? `${l.employee.firstName} ${l.employee.lastName}` : 'Unknown',
+      type: `${l.type} Leave`,
+      dates: `${l.startDate ? new Date(l.startDate).toISOString().split('T')[0] : ''} to ${l.endDate ? new Date(l.endDate).toISOString().split('T')[0] : ''}`,
+      status: l.status
+    }));
+  }, [isDemoMode, leaves]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [projRes, reqRes, teamReqRes, empRes] = await Promise.all([
+      const [projRes, reqRes, teamReqRes, empRes, leavesRes] = await Promise.all([
         api.get('/projects').catch(() => ({ data: [] })),
         api.get('/projects/requests').catch(() => ({ data: [] })),
         api.get('/projects/team-requests').catch(() => ({ data: [] })),
-        api.get('/employees').catch(() => ({ data: [] }))
+        api.get('/employees').catch(() => ({ data: [] })),
+        api.get('/leaves').catch(() => ({ data: [] }))
       ]);
       setProjects(projRes.data || []);
       setProjectRequests(reqRes.data || []);
       setTeamRequests(teamReqRes.data || []);
+      setLeaves(leavesRes.data || []);
       
       const allEmps = empRes.data || [];
       setEmployees(allEmps);
@@ -2669,15 +3090,29 @@ const ManagerDashboard = () => {
         { _id: 'tl1', firstName: 'Arjun', lastName: 'Mehta', employeeId: 'TL001', designation: 'Team Lead' },
         { _id: 'tl2', firstName: 'Sneha', lastName: 'Gupta', employeeId: 'TL002', designation: 'Team Lead' }
       ]);
+      setLeaves([
+        { id: 1, _id: 1, name: 'Riya Sharma', type: 'Sick Leave', dates: '2026-07-06 to 2026-07-08', status: 'Pending' },
+        { id: 2, _id: 2, name: 'Amit Verma', type: 'Earned Leave', dates: '2026-07-10 to 2026-07-12', status: 'Pending' }
+      ]);
       setLoading(false);
     } else {
       loadData();
     }
   }, [isDemoMode]);
 
-  const handleLeaveAction = (id, status) => {
-    setLeaves(leaves.map(l => l.id === id ? { ...l, status } : l));
-    toast.success(`Request ${status} successfully`);
+  const handleLeaveAction = async (id, status) => {
+    if (isDemoMode) {
+      setLeaves(leaves.map(l => l.id === id || l._id === id ? { ...l, status } : l));
+      toast.success(`Request ${status} successfully (Demo Mode)`);
+      return;
+    }
+    try {
+      await api.put(`/leaves/${id}/status`, { status });
+      toast.success(`Leave request ${status.toLowerCase()} successfully`);
+      await loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update leave request status');
+    }
   };
 
   const handleCreateProjectSubmit = async (e) => {
@@ -2833,38 +3268,78 @@ const ManagerDashboard = () => {
      (progressStore['rohit_das'] || 30)) / 3
   );
 
-  const supervisedTeams = [
-    {
-      id: 'arjun',
-      name: 'Arjun Mehta',
-      designation: 'Tech Lead / Eng Lead',
-      project: projects.find(p => p.assignedTeamLead?._id === 'tl1' || p.assignedTeamLead === 'tl1')?.name || 'None',
-      progress: arjunProgress,
-      size: employees.filter(e => e.reportingManager === 'tl1').length,
-      avatar: 'AM',
-      employees: employees.filter(e => e.reportingManager === 'tl1').map(e => ({
-        name: `${e.firstName} ${e.lastName}`,
-        task: e.firstName === 'Riya' ? 'API Integration' : e.firstName === 'Karan' ? 'UI Components' : 'Testing',
-        progress: e.firstName === 'Riya' ? (progressStore['riya_sharma'] || 65) : e.firstName === 'Karan' ? (progressStore['karan_patel'] || 80) : (progressStore['priya_singh'] || 40),
-        status: e.firstName === 'Riya' ? 'In Progress' : e.firstName === 'Karan' ? 'Completed' : 'To Do'
-      }))
-    },
-    {
-      id: 'sneha',
-      name: 'Sneha Gupta',
-      designation: 'Tech Lead / DB Lead',
-      project: projects.find(p => p.assignedTeamLead?._id === 'tl2' || p.assignedTeamLead === 'tl2')?.name || 'None',
-      progress: snehaProgress,
-      size: employees.filter(e => e.reportingManager === 'tl2').length,
-      avatar: 'SG',
-      employees: employees.filter(e => e.reportingManager === 'tl2').map(e => ({
-        name: `${e.firstName} ${e.lastName}`,
-        task: e.firstName === 'Amit' ? 'DB Schema' : e.firstName === 'Neha' ? 'Backend APIs' : 'Frontend',
-        progress: e.firstName === 'Amit' ? (progressStore['amit_verma'] || 90) : e.firstName === 'Neha' ? (progressStore['neha_joshi'] || 55) : (progressStore['rohit_das'] || 30),
-        status: e.firstName === 'Amit' ? 'Review' : e.firstName === 'Neha' ? 'In Progress' : 'To Do'
-      }))
+  const supervisedTeams = useMemo(() => {
+    if (isDemoMode) {
+      return [
+        {
+          id: 'arjun',
+          name: 'Arjun Mehta',
+          designation: 'Tech Lead / Eng Lead',
+          project: projects.find(p => p.assignedTeamLead?._id === 'tl1' || p.assignedTeamLead === 'tl1')?.name || 'None',
+          progress: arjunProgress,
+          size: employees.filter(e => e.reportingManager === 'tl1').length,
+          avatar: 'AM',
+          employees: employees.filter(e => e.reportingManager === 'tl1').map(e => ({
+            name: `${e.firstName} ${e.lastName}`,
+            task: e.firstName === 'Riya' ? 'API Integration' : e.firstName === 'Karan' ? 'UI Components' : 'Testing',
+            progress: e.firstName === 'Riya' ? (progressStore['riya_sharma'] || 65) : e.firstName === 'Karan' ? (progressStore['karan_patel'] || 80) : (progressStore['priya_singh'] || 40),
+            status: e.firstName === 'Riya' ? 'In Progress' : e.firstName === 'Karan' ? 'Completed' : 'To Do'
+          }))
+        },
+        {
+          id: 'sneha',
+          name: 'Sneha Gupta',
+          designation: 'Tech Lead / DB Lead',
+          project: projects.find(p => p.assignedTeamLead?._id === 'tl2' || p.assignedTeamLead === 'tl2')?.name || 'None',
+          progress: snehaProgress,
+          size: employees.filter(e => e.reportingManager === 'tl2').length,
+          avatar: 'SG',
+          employees: employees.filter(e => e.reportingManager === 'tl2').map(e => ({
+            name: `${e.firstName} ${e.lastName}`,
+            task: e.firstName === 'Amit' ? 'DB Schema' : e.firstName === 'Neha' ? 'Backend APIs' : 'Frontend',
+            progress: e.firstName === 'Amit' ? (progressStore['amit_verma'] || 90) : e.firstName === 'Neha' ? (progressStore['neha_joshi'] || 55) : (progressStore['rohit_das'] || 30),
+            status: e.firstName === 'Amit' ? 'Review' : e.firstName === 'Neha' ? 'In Progress' : 'To Do'
+          }))
+        }
+      ];
     }
-  ];
+
+    const actualLeads = teamLeads.filter(tl => tl.userRef?._id !== user?._id && tl._id !== user?.employeeRef?._id);
+
+    return actualLeads.map(tl => {
+      const tlId = tl._id;
+      const teamEmployees = employees.filter(e => String(e.reportingManager?._id || e.reportingManager) === String(tlId));
+      
+      const tlProject = projects.find(p => String(p.assignedTeamLead?._id || p.assignedTeamLead) === String(tlId));
+      
+      let progress = 0;
+      if (tlProject) {
+        if (tlProject.tlAcceptedStatus === 'Accepted') {
+          const agreedCount = tlProject.agreedEmployees?.length || 0;
+          const totalCount = tlProject.employees?.length || 0;
+          progress = totalCount > 0 ? Math.round((agreedCount / totalCount) * 100) : 50;
+        } else {
+          progress = 10; // TL pending
+        }
+      }
+
+      return {
+        id: tlId,
+        name: `${tl.firstName} ${tl.lastName}`,
+        designation: tl.designation || 'Team Lead',
+        project: tlProject ? tlProject.name : 'None',
+        progress: progress,
+        size: teamEmployees.length,
+        avatar: `${tl.firstName?.[0] || ''}${tl.lastName?.[0] || ''}`,
+        employees: teamEmployees.map(e => ({
+          name: `${e.firstName} ${e.lastName}`,
+          task: e.designation || 'Developer',
+          progress: 100,
+          status: 'Active'
+        }))
+      };
+    });
+  }, [isDemoMode, teamLeads, employees, projects, arjunProgress, snehaProgress, user, progressStore]);
 
   if (loading) {
     return (
@@ -3146,10 +3621,10 @@ const ManagerDashboard = () => {
         <div className="glass-card border border-orange-500/20 rounded-2xl p-5">
           <h3 className="text-xs font-black text-orange-700 dark:text-orange-400 uppercase tracking-widest mb-4">Leave Claims Pending</h3>
           <div className="space-y-3">
-            {leaves.filter(l => l.status === 'Pending').length === 0 ? (
+            {displayLeaves.filter(l => l.status === 'Pending').length === 0 ? (
               <p className="text-[10px] text-slate-405 italic py-4 text-center">No pending leave claims.</p>
             ) : (
-              leaves.filter(l => l.status === 'Pending').map((l, i) => (
+              displayLeaves.filter(l => l.status === 'Pending').map((l, i) => (
                 <div key={i} className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/30 rounded-xl flex flex-col gap-2.5 text-xs">
                   <div className="flex justify-between items-start">
                     <div>
@@ -3160,7 +3635,7 @@ const ManagerDashboard = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-2 border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-2.5">
                     <button onClick={() => handleLeaveAction(l.id, 'Approved')} className="bg-emerald-605 hover:bg-emerald-705 text-white font-bold py-1.5 rounded-lg text-[9px] transition-all border-0 cursor-pointer">Approve</button>
-                    <button onClick={() => handleLeaveAction(l.id, 'Rejected')} className="bg-red-500 text-white font-bold py-1.5 rounded-lg text-[9px] transition-all border-0 cursor-pointer">Reject</button>
+                    <button onClick={() => handleLeaveAction(l.id, 'Rejected')} className="bg-red-50 text-white font-bold py-1.5 rounded-lg text-[9px] transition-all border-0 cursor-pointer">Reject</button>
                   </div>
                 </div>
               ))
@@ -3262,7 +3737,15 @@ const TeamLeadDashboard = () => {
   const [objections, setObjections] = useState([]);
   const [proposals, setProposals] = useState([]);
   const [teamLeads, setTeamLeads] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Filters & Project Staffing States
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState('all');
+  const [showManageStaffModal, setShowManageStaffModal] = useState(false);
+  const [staffModalProjectId, setStaffModalProjectId] = useState('');
+  const [staffModalEmployeeIds, setStaffModalEmployeeIds] = useState([]);
+  const [savingStaff, setSavingStaff] = useState(false);
 
   // Modals state
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -3292,13 +3775,14 @@ const TeamLeadDashboard = () => {
   const loadTLData = async () => {
     try {
       setLoading(true);
-      const [empRes, taskRes, reportRes, objRes, propRes, userRes] = await Promise.all([
+      const [empRes, taskRes, reportRes, objRes, propRes, leadsRes, projRes] = await Promise.all([
         api.get('/employees').catch(() => ({ data: [] })),
-        api.get('/tasks').catch(() => ({ data: [] })),
+        api.get('/enterprise/tasks').catch(() => ({ data: [] })),
         api.get('/progress-reports').catch(() => ({ data: [] })),
         api.get('/objections').catch(() => ({ data: [] })),
         api.get('/proposals').catch(() => ({ data: [] })),
-        api.get('/users').catch(() => ({ data: [] }))
+        api.get('/teams/available-leads').catch(() => ({ data: [] })),
+        api.get('/projects').catch(() => ({ data: [] }))
       ]);
 
       setEmployees(empRes.data || []);
@@ -3306,7 +3790,8 @@ const TeamLeadDashboard = () => {
       setProgressReports(reportRes.data || []);
       setObjections(objRes.data || []);
       setProposals(propRes.data || []);
-      setTeamLeads(userRes.data?.filter(u => u.role?.name === 'Team Lead' && u._id !== currentUser._id) || []);
+      setTeamLeads(leadsRes.data || []);
+      setProjects(projRes.data || []);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load Team Lead workspace details');
@@ -3317,12 +3802,14 @@ const TeamLeadDashboard = () => {
 
   useEffect(() => {
     if (isDemoMode) {
+      setProjects([
+        { _id: 'p1', name: 'Employee Portal v2', description: 'Upgraded employee self-service portal', assignedTeamLead: currentUser?.employeeRef?._id || 'tl1', employees: ['emp1', 'emp2', 'emp3'], status: 'Ongoing', tlAcceptedStatus: 'Accepted' }
+      ]);
       setLoading(false);
       return;
     }
     loadTLData();
   }, [isDemoMode]);
-
   // Sync Kanban tasks state locally for drag-drop
   const [localTasks, setLocalTasks] = useState([]);
   useEffect(() => {
@@ -3366,7 +3853,7 @@ const TeamLeadDashboard = () => {
         'Blocked': 'Blocked'
       };
       const apiStatus = statusMap[targetColumn] || 'Pending';
-      await api.put(`/tasks/${taskId}`, { status: apiStatus });
+      await api.put(`/enterprise/tasks/${taskId}`, { status: apiStatus });
       toast.success(`Task status updated to ${targetColumn}`);
       await loadTLData();
     } catch (err) {
@@ -3384,7 +3871,7 @@ const TeamLeadDashboard = () => {
     if (!title || !assigneeId) return;
 
     try {
-      await api.post('/tasks', {
+      await api.post('/enterprise/tasks', {
         title,
         description: 'Assigned task from Sprint Command Board',
         assignedTo: assigneeId,
@@ -3409,7 +3896,8 @@ const TeamLeadDashboard = () => {
     try {
       setReassigningMember(true);
       await api.put('/teams/reassign', {
-        targetLeadId: reassignTargetLead,
+        toTeamLeadId: reassignTargetLead,
+        fromTeamLeadId: reassignTargetMember.reportingManager?._id || reassignTargetMember.reportingManager,
         employeeId: reassignTargetMember._id
       });
       toast.success('Team member reassigned successfully');
@@ -3428,7 +3916,7 @@ const TeamLeadDashboard = () => {
     setReportProgress(50);
     setReportSummary('');
     // Initialize task breakdown from team members
-    const teamMembers = employees.filter(e => String(e.reportingManager) === String(currentUser.employeeRef));
+    const teamMembers = employees.filter(e => String(e.reportingManager?._id || e.reportingManager) === String(currentUser?.employeeRef?._id || currentUser?.employeeRef));
     setTaskBreakdownList(teamMembers.map(m => ({
       employeeId: m._id,
       name: `${m.firstName} ${m.lastName}`,
@@ -3513,8 +4001,60 @@ const TeamLeadDashboard = () => {
     }
   };
 
+  const handleSelectStaffProject = (projectId) => {
+    setStaffModalProjectId(projectId);
+    if (!projectId) {
+      setStaffModalEmployeeIds([]);
+      return;
+    }
+    const proj = projects.find(p => p._id === projectId);
+    if (proj) {
+      const ids = proj.employees?.map(e => e._id || e) || [];
+      setStaffModalEmployeeIds(ids);
+    } else {
+      setStaffModalEmployeeIds([]);
+    }
+  };
+
+  const handleSaveStaffing = async (e) => {
+    e.preventDefault();
+    if (!staffModalProjectId) return;
+
+    if (isDemoMode) {
+      setProjects(prev => prev.map(p => {
+        if (p._id === staffModalProjectId) {
+          return { ...p, employees: staffModalEmployeeIds };
+        }
+        return p;
+      }));
+      toast.success('Project staffing updated (Demo Mode)');
+      setShowManageStaffModal(false);
+      return;
+    }
+
+    try {
+      setSavingStaff(true);
+      await api.put(`/projects/${staffModalProjectId}/staff`, {
+        employeeIds: staffModalEmployeeIds
+      });
+      toast.success('Project staffing updated successfully');
+      setShowManageStaffModal(false);
+      await loadTLData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update project staffing');
+    } finally {
+      setSavingStaff(false);
+    }
+  };
+
   // Filters
-  const myTeam = employees.filter(e => String(e.reportingManager) === String(currentUser.employeeRef));
+  const myProjects = projects.filter(p => String(p.assignedTeamLead?._id || p.assignedTeamLead) === String(currentUser?.employeeRef?._id || currentUser?.employeeRef));
+  const myTeam = employees.filter(e => String(e.reportingManager?._id || e.reportingManager) === String(currentUser?.employeeRef?._id || currentUser?.employeeRef));
+  const filteredMyTeam = myTeam.filter(emp => {
+    if (selectedProjectFilter === 'all') return true;
+    const proj = myProjects.find(p => p._id === selectedProjectFilter);
+    return proj && proj.employees?.some(e => String(e?._id || e) === String(emp._id));
+  });
   const pendingReportRequests = progressReports.filter(pr => pr.status === 'Requested');
   const columns = ['To Do', 'In Progress', 'Review', 'Completed', 'Blocked'];
 
@@ -3612,15 +4152,46 @@ const TeamLeadDashboard = () => {
 
           {/* Development Team cards */}
           <div className="glass-card border border-cyan-500/20 rounded-2xl p-5">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xs font-black text-cyan-700 dark:text-cyan-400 uppercase tracking-widest">My Development Team</h3>
-              <button onClick={() => setShowAssignModal(true)} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 transition-all border-0 cursor-pointer"><Plus className="h-3.5 w-3.5" /> Assign Task</button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-xs font-black text-cyan-700 dark:text-cyan-400 uppercase tracking-widest">My Development Team</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Filter by project and manage member assignments.</p>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <select
+                  value={selectedProjectFilter}
+                  onChange={(e) => setSelectedProjectFilter(e.target.value)}
+                  className="text-xs p-1.5 bg-slate-50 dark:bg-[#0B1023]/60 border border-slate-200 dark:border-cyan-500/30 rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                >
+                  <option value="all">All Projects</option>
+                  {myProjects.map(p => (
+                    <option key={p._id} value={p._id}>{p.name}</option>
+                  ))}
+                </select>
+
+                {myProjects.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowManageStaffModal(true);
+                      if (myProjects.length > 0) {
+                        handleSelectStaffProject(myProjects[0]._id);
+                      }
+                    }}
+                    className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 hover:border-transparent font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 transition-all cursor-pointer"
+                  >
+                    <Users className="h-3.5 w-3.5" /> Manage Staff
+                  </button>
+                )}
+
+                <button onClick={() => setShowAssignModal(true)} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 transition-all border-0 cursor-pointer"><Plus className="h-3.5 w-3.5" /> Assign Task</button>
+              </div>
             </div>
-            {myTeam.length === 0 ? (
-              <p className="text-xs text-slate-455 italic py-4 text-center">No reporting team members found.</p>
+            {filteredMyTeam.length === 0 ? (
+              <p className="text-xs text-slate-455 italic py-4 text-center">No reporting team members found matching this filter.</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                {myTeam.map((t, idx) => (
+                {filteredMyTeam.map((t, idx) => (
                   <div key={idx} className="p-4 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/45 rounded-xl space-y-3 shadow-sm relative overflow-hidden">
                     <div className="flex items-center gap-2.5 font-sans">
                       <div className="h-8 w-8 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/35 rounded-lg flex items-center justify-center font-bold text-xs">
@@ -3901,7 +4472,7 @@ const TeamLeadDashboard = () => {
                 >
                   <option value="">-- Choose Team Lead --</option>
                   {teamLeads.map(lead => (
-                    <option key={lead._id} value={lead._id}>{lead.username} ({lead.email})</option>
+                    <option key={lead._id} value={lead._id}>{lead.firstName} {lead.lastName} ({lead.email})</option>
                   ))}
                 </select>
                 <p className="text-[10px] text-slate-550 leading-normal">
@@ -3929,7 +4500,79 @@ const TeamLeadDashboard = () => {
           </LocalModal>
         )}
 
-        {/* Submit Progress Report Modal */}
+        {/* Manage Project Staffing Modal */}
+        {showManageStaffModal && (
+          <LocalModal title="Manage Project Staffing" onClose={() => setShowManageStaffModal(false)}>
+            <form onSubmit={handleSaveStaffing} className="space-y-4 font-sans text-xs">
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-455 uppercase">Select Project to Staff</label>
+                <select
+                  value={staffModalProjectId}
+                  onChange={(e) => handleSelectStaffProject(e.target.value)}
+                  required
+                  className="w-full text-xs p-2.5 bg-slate-50 dark:bg-[#0B1023] border border-slate-200 dark:border-[#1F2647] rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                >
+                  <option value="">-- Choose Project --</option>
+                  {myProjects.map(p => (
+                    <option key={p._id} value={p._id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {staffModalProjectId && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-455 uppercase">Staff Members Checkboxes</label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto border border-slate-200 dark:border-[#1F2647] p-3 rounded-xl bg-slate-50/50 dark:bg-[#0B1023]/60">
+                    {myTeam.map(emp => {
+                      const isChecked = staffModalEmployeeIds.includes(emp._id);
+                      return (
+                        <label key={emp._id} className="flex items-center gap-2 cursor-pointer py-1 hover:bg-slate-100/5 dark:hover:bg-indigo-500/5 px-2 rounded-lg">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setStaffModalEmployeeIds([...staffModalEmployeeIds, emp._id]);
+                              } else {
+                                setStaffModalEmployeeIds(staffModalEmployeeIds.filter(id => id !== emp._id));
+                              }
+                            }}
+                            className="rounded border-slate-350 text-cyan-600 focus:ring-cyan-500 bg-slate-50 dark:bg-[#0B1023]"
+                          />
+                          <span className="text-xs text-slate-900 dark:text-white font-medium">{emp.firstName} {emp.lastName} ({emp.designation || 'Developer'})</span>
+                        </label>
+                      );
+                    })}
+                    {myTeam.length === 0 && (
+                      <p className="text-slate-500 italic text-[10px]">No developers report to you.</p>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-450 leading-relaxed">
+                    Note: Unchecking a developer will remove them from the project. Checked developers will be assigned tasks under this project.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-slate-100 dark:border-indigo-500/15">
+                <button
+                  type="button"
+                  onClick={() => setShowManageStaffModal(false)}
+                  className="px-4 py-2 text-xs font-bold uppercase text-slate-405 hover:text-white border-0 bg-transparent cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingStaff || !staffModalProjectId}
+                  className="px-4 py-2 text-xs font-bold uppercase text-white btn-premium-gradient rounded-xl disabled:opacity-50 border-0 cursor-pointer"
+                >
+                  {savingStaff ? 'Saving...' : 'Save Staffing'}
+                </button>
+              </div>
+            </form>
+          </LocalModal>
+        )}
+
         {submitReportTarget && (
           <LocalModal title="Submit Progress Report to HR" onClose={() => setSubmitReportTarget(null)}>
             <form onSubmit={handleSubmitProgressReport} className="space-y-4 max-h-[80vh] overflow-y-auto pr-2 text-xs font-sans">
@@ -4616,37 +5259,150 @@ const FinanceDashboard = () => {
 // 7. IT ADMINISTRATOR DASHBOARD (Red)
 // ═══════════════════════════════════════════════════════════════════════════════
 const ITAdminDashboard = () => {
-  const [tickets, setTickets] = useState([
-    { id: 'TCK_881', employee: 'Sarah Jenkins', cat: 'Hardware', priority: 'High', status: 'Open', age: '2 hours' },
-    { id: 'TCK_882', employee: 'Arjun Mehta', cat: 'Software', priority: 'Medium', status: 'In Progress', age: '4 hours' },
-    { id: 'TCK_883', employee: 'Sneha Gupta', cat: 'Access', priority: 'High', status: 'Open', age: '1 day' },
-    { id: 'TCK_884', employee: 'Marcus Vane', cat: 'Network', priority: 'Low', status: 'Resolved', age: '2 days' },
-    { id: 'TCK_885', employee: 'Karan Patel', cat: 'Software', priority: 'High', status: 'Open', age: '5 mins' }
-  ]);
+  const { isDemoMode } = useContext(DemoContext);
+  const [tickets, setTickets] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [assets, setAssets] = useState([]);
+  const [loading, setLoading] = useState(!isDemoMode);
 
-  const [resets] = useState([
-    { name: 'Riya Sharma', time: '12:00:15', status: 'Pending' },
-    { name: 'Karan Patel', time: '11:45:00', status: 'Completed' },
-    { name: 'Sneha Gupta', time: '10:12:30', status: 'Completed' },
-    { name: 'Elena Rostova', time: '09:00:00', status: 'Completed' }
-  ]);
+  const fetchITData = async () => {
+    try {
+      setLoading(true);
+      const [supportRes, userRes, assetRes] = await Promise.all([
+        api.get('/support').catch(() => ({ data: [] })),
+        api.get('/users').catch(() => ({ data: [] })),
+        api.get('/assets').catch(() => ({ data: [] }))
+      ]);
+      setTickets(supportRes.data || []);
+      setUsers(userRes.data || []);
+      setAssets(assetRes.data || []);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load support tickets and assets');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isDemoMode) {
+      setTickets([
+        { id: 'TCK_881', employee: 'Sarah Jenkins', cat: 'Hardware', priority: 'High', status: 'Open', age: '2 hours' },
+        { id: 'TCK_882', employee: 'Arjun Mehta', cat: 'Software', priority: 'Medium', status: 'In Progress', age: '4 hours' },
+        { id: 'TCK_883', employee: 'Sneha Gupta', cat: 'Access', priority: 'High', status: 'Open', age: '1 day' },
+        { id: 'TCK_884', employee: 'Marcus Vane', cat: 'Network', priority: 'Low', status: 'Resolved', age: '2 days' },
+        { id: 'TCK_885', employee: 'Karan Patel', cat: 'Software', priority: 'High', status: 'Open', age: '5 mins' }
+      ]);
+      setLoading(false);
+      return;
+    }
+    fetchITData();
+  }, [isDemoMode]);
+
+  const displayTickets = useMemo(() => {
+    if (isDemoMode) {
+      return tickets;
+    }
+    return tickets.map(t => {
+      let age = 'N/A';
+      if (t.createdAt) {
+        const diffMs = new Date() - new Date(t.createdAt);
+        const diffMins = Math.floor(diffMs / 60000);
+        if (diffMins < 60) age = `${diffMins} mins`;
+        else {
+          const diffHours = Math.floor(diffMins / 60);
+          if (diffHours < 24) age = `${diffHours} hours`;
+          else age = `${Math.floor(diffHours / 24)} days`;
+        }
+      }
+      return {
+        id: t._id,
+        employee: t.employee ? `${t.employee.firstName} ${t.employee.lastName}` : 'Unknown',
+        cat: t.category,
+        priority: t.category === 'Hardware' ? 'High' : 'Medium',
+        status: t.status,
+        age: age
+      };
+    });
+  }, [isDemoMode, tickets]);
+
+  const displayResets = useMemo(() => {
+    if (isDemoMode) {
+      return [
+        { name: 'Riya Sharma', time: '12:00:15', status: 'Pending' },
+        { name: 'Karan Patel', time: '11:45:00', status: 'Completed' },
+        { name: 'Sneha Gupta', time: '10:12:30', status: 'Completed' },
+        { name: 'Elena Rostova', time: '09:00:00', status: 'Completed' }
+      ];
+    }
+    return users
+      .filter(u => u.mustChangePassword || u.isLocked)
+      .map(u => ({
+        name: u.username,
+        time: u.updatedAt ? new Date(u.updatedAt).toLocaleTimeString() : 'N/A',
+        status: u.isLocked ? 'Pending Unlock' : 'Pending Change'
+      }));
+  }, [isDemoMode, users]);
 
   const handleActionClick = (action) => {
     toast.info(`Triggered IT Admin action: ${action}`);
   };
 
-  const handleCloseTicket = (id) => {
-    setTickets(tickets.map(t => t.id === id ? { ...t, status: 'Closed' } : t));
-    toast.success(`Ticket ${id} closed successfully!`);
+  const handleCloseTicket = async (id) => {
+    if (isDemoMode) {
+      setTickets(tickets.map(t => t.id === id ? { ...t, status: 'Closed' } : t));
+      toast.success(`Ticket ${id} closed successfully! (Demo Mode)`);
+      return;
+    }
+    try {
+      await api.put(`/support/${id}/status`, { status: 'Closed' });
+      toast.success(`Ticket closed successfully!`);
+      await fetchITData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update ticket status');
+    }
   };
+
+  const totalAssetsCount = useMemo(() => {
+    if (isDemoMode) return "156 Assets";
+    return `${assets.length} Asset${assets.length !== 1 ? 's' : ''}`;
+  }, [isDemoMode, assets]);
+
+  const assetsDesc = useMemo(() => {
+    if (isDemoMode) return "Assigned: 134 | Unassigned: 22";
+    const assigned = assets.filter(a => a.status === 'Assigned').length;
+    const available = assets.filter(a => a.status === 'Available').length;
+    return `Assigned: ${assigned} | Available: ${available}`;
+  }, [isDemoMode, assets]);
+
+  const pendingResetsCount = useMemo(() => {
+    if (isDemoMode) return "1 Request";
+    const count = users.filter(u => u.isLocked).length;
+    return `${count} Request${count !== 1 ? 's' : ''}`;
+  }, [isDemoMode, users]);
+
+  const repairAssetsCount = useMemo(() => {
+    if (isDemoMode) return "8 Systems";
+    const count = assets.filter(a => a.status === 'Maintenance').length;
+    return `${count} System${count !== 1 ? 's' : ''}`;
+  }, [isDemoMode, assets]);
+
+  if (loading) {
+    return (
+      <div className="flex h-96 items-center justify-center space-x-2">
+        <Activity className="h-6 w-6 text-red-500 animate-spin" />
+        <span className="text-sm font-bold text-slate-500 font-sans">Loading IT Administration workspace...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 text-slate-800 dark:text-white">
       {/* Grid KPI Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total IT Assets" value="156 Assets" colorAccent="red" icon={Cpu} desc="Assigned: 134 | Unassigned: 22" />
-        <StatCard label="Pending resets" value="1 Request" colorAccent="red" icon={Lock} desc="Requires manual override keys" />
-        <StatCard label="Hardware Under Repair" value="8 Systems" colorAccent="red" icon={Settings} desc="Estimated checkout: 3 days" />
+        <StatCard label="Total IT Assets" value={totalAssetsCount} colorAccent="red" icon={Cpu} desc={assetsDesc} />
+        <StatCard label="Pending resets" value={pendingResetsCount} colorAccent="red" icon={Lock} desc="Requires manual override keys" />
+        <StatCard label="Hardware Under Repair" value={repairAssetsCount} colorAccent="red" icon={Settings} desc="Estimated checkout: 3 days" />
         <StatCard label="System Vitals" value="CPU: 4% | 4.6G" colorAccent="red" icon={Activity} desc="Ping: 16ms · Stable" />
       </div>
 
@@ -4667,8 +5423,8 @@ const ITAdminDashboard = () => {
                   <th className="pb-3 font-semibold">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200">
-                {tickets.map((t, i) => (
+              <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200 font-sans">
+                {displayTickets.map((t, i) => (
                   <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
                     <td className="py-2.5 font-bold text-red-655 dark:text-red-400">{t.id}</td>
                     <td className="py-2.5 text-slate-900 dark:text-white font-bold">{t.employee}</td>
@@ -4680,7 +5436,7 @@ const ITAdminDashboard = () => {
                     <td className="py-2.5 text-slate-500 dark:text-slate-450">{t.age}</td>
                     <td className="py-2.5">
                       {t.status !== 'Closed' && t.status !== 'Resolved' ? (
-                        <button onClick={() => handleCloseTicket(t.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold text-[8px] px-2 py-0.5 rounded transition-all">Close</button>
+                        <button onClick={() => handleCloseTicket(t.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold text-[8px] px-2 py-0.5 rounded transition-all border-0 cursor-pointer">Close</button>
                       ) : <span className="text-slate-450 dark:text-slate-550 italic">Closed</span>}
                     </td>
                   </tr>
@@ -4696,9 +5452,9 @@ const ITAdminDashboard = () => {
           <div className="glass-card border border-red-500/20 rounded-2xl p-5 space-y-4">
             <h3 className="text-xs font-black text-red-700 dark:text-red-400 uppercase tracking-widest">IT Operations</h3>
             <div className="flex flex-col gap-2">
-              <button onClick={() => handleActionClick('Reset password flow initiated')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-red-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-red-650/10 border border-slate-200 dark:border-[#1F2647] hover:border-red-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Reset Staff Password</span><ArrowRight className="h-4 w-4 text-red-655 dark:text-red-400" /></button>
-              <button onClick={() => handleActionClick('Onboarding new Asset...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-red-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-red-650/10 border border-slate-200 dark:border-[#1F2647] hover:border-red-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Add New Asset Entry</span><ArrowRight className="h-4 w-4 text-red-655 dark:text-red-400" /></button>
-              <button onClick={() => handleActionClick('Viewing system security logs...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-red-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-red-655/10 border border-slate-200 dark:border-[#1F2647] hover:border-red-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between"><span>Close Support Ticket</span><ArrowRight className="h-4 w-4 text-red-655 dark:text-red-400" /></button>
+              <button onClick={() => handleActionClick('Reset password flow initiated')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-red-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-red-650/10 border border-slate-200 dark:border-[#1F2647] hover:border-red-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between border-0 cursor-pointer"><span>Reset Staff Password</span><ArrowRight className="h-4 w-4 text-red-655 dark:text-red-400" /></button>
+              <button onClick={() => handleActionClick('Onboarding new Asset...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-red-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-red-650/10 border border-slate-200 dark:border-[#1F2647] hover:border-red-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between border-0 cursor-pointer"><span>Add New Asset Entry</span><ArrowRight className="h-4 w-4 text-red-655 dark:text-red-400" /></button>
+              <button onClick={() => handleActionClick('Viewing system security logs...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-red-500/5 dark:bg-[#1E2544]/60 dark:hover:bg-red-655/10 border border-slate-200 dark:border-[#1F2647] hover:border-red-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between border-0 cursor-pointer"><span>Close Support Ticket</span><ArrowRight className="h-4 w-4 text-red-655 dark:text-red-400" /></button>
             </div>
           </div>
 
@@ -4706,7 +5462,7 @@ const ITAdminDashboard = () => {
           <div className="glass-card border border-red-500/20 rounded-2xl p-5">
             <h3 className="text-xs font-black text-red-700 dark:text-red-400 uppercase tracking-widest mb-4">Password Resets Timeline</h3>
             <div className="space-y-3 font-mono text-[10px] text-slate-600 dark:text-slate-350">
-              {resets.map((r, i) => (
+              {displayResets.map((r, i) => (
                 <div key={i} className="p-2 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/10 rounded-xl flex justify-between items-center">
                   <div>
                     <span className="text-red-750 dark:text-red-400 font-bold">&gt; {r.name}</span>
@@ -4727,8 +5483,37 @@ const ITAdminDashboard = () => {
 // 8. AUDITOR DASHBOARD (Gray/Silver)
 // ═══════════════════════════════════════════════════════════════════════════════
 const AuditorDashboard = () => {
-  // Hardcoded audit logs
-  const rawAuditLogs = [
+  const { isDemoMode } = useContext(DemoContext);
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(!isDemoMode);
+
+  // React state filters
+  const [filterModule, setFilterModule] = useState('All');
+  const [filterRole, setFilterRole] = useState('All');
+
+  const fetchLogs = async () => {
+    try {
+      setLoading(true);
+      const { data } = await api.get('/audit');
+      setLogs(data || []);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load audit logs from the database');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isDemoMode) {
+      setLoading(false);
+      return;
+    }
+    fetchLogs();
+  }, [isDemoMode]);
+
+  // Hardcoded audit logs fallback for demo
+  const demoAuditLogs = [
     { time: '2026-07-05 12:04:12', user: 'super_admin', role: 'Super Admin', action: 'ROTATE_JWT_SECRET', module: 'Security', ip: '192.168.1.1' },
     { time: '2026-07-05 11:45:00', user: 'finance_lead', role: 'Finance', action: 'DISPATCH_PAYROLL', module: 'Finance', ip: '192.168.1.4' },
     { time: '2026-07-05 11:32:18', user: 'hr_manager', role: 'HR Manager', action: 'CREATE_EMPLOYEE', module: 'HR Directory', ip: '192.168.1.25' },
@@ -4751,9 +5536,43 @@ const AuditorDashboard = () => {
     { time: '2026-07-04 08:30:00', user: 'system_core', role: 'System Engine', action: 'ROTATE_API_KEYS', module: 'Security', ip: '127.0.0.1' }
   ];
 
-  // React state filters
-  const [filterModule, setFilterModule] = useState('All');
-  const [filterRole, setFilterRole] = useState('All');
+  const rawAuditLogs = useMemo(() => {
+    if (isDemoMode) {
+      return demoAuditLogs;
+    }
+    return logs.map(l => {
+      let module = 'General';
+      const actionUpper = l.action ? l.action.toUpperCase() : '';
+      if (actionUpper.includes('JWT') || actionUpper.includes('PASSWORD') || actionUpper.includes('SECURITY') || actionUpper.includes('AUTH') || actionUpper.includes('ROLE')) {
+        module = 'Security';
+      } else if (actionUpper.includes('PAYROLL') || actionUpper.includes('SALARY') || actionUpper.includes('FINANCE')) {
+        module = 'Finance';
+      } else if (actionUpper.includes('EMPLOYEE') || actionUpper.includes('LEAVE') || actionUpper.includes('DEPARTMENT')) {
+        module = 'HR Directory';
+      } else if (actionUpper.includes('ASSET')) {
+        module = 'Assets';
+      } else if (actionUpper.includes('ORG')) {
+        module = 'Org Setup';
+      } else if (actionUpper.includes('AUDIT')) {
+        module = 'Audits';
+      } else if (actionUpper.includes('DB') || actionUpper.includes('REPLICATION')) {
+        module = 'Database';
+      } else if (actionUpper.includes('PROJECT') || actionUpper.includes('TASK')) {
+        module = 'Projects';
+      } else if (actionUpper.includes('ATTENDANCE') || actionUpper.includes('CLOCK')) {
+        module = 'Attendance';
+      }
+
+      return {
+        time: l.createdAt ? new Date(l.createdAt).toLocaleString() : 'N/A',
+        user: l.userRef ? l.userRef.username : 'System',
+        role: (l.userRef && l.userRef.role) ? (l.userRef.role.name || l.userRef.role) : 'System Engine',
+        action: l.action,
+        module: module,
+        ip: l.ipAddress || '127.0.0.1'
+      };
+    });
+  }, [isDemoMode, logs]);
 
   const filteredLogs = rawAuditLogs.filter(l => {
     const matchMod = filterModule === 'All' || l.module === filterModule;
@@ -4768,6 +5587,15 @@ const AuditorDashboard = () => {
     toast.success('Export initiated! Preparing CSV and PDF bundles.');
   };
 
+  if (loading) {
+    return (
+      <div className="flex h-96 items-center justify-center space-x-2">
+        <Activity className="h-6 w-6 text-slate-500 animate-spin" />
+        <span className="text-sm font-bold text-slate-500 font-sans">Loading audit log register...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 text-slate-800 dark:text-white">
       {/* Alert alert cards */}
@@ -4775,14 +5603,14 @@ const AuditorDashboard = () => {
         <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-between text-xs">
           <div>
             <p className="font-bold text-red-655 dark:text-red-400 uppercase tracking-widest text-[10px]">Failed Logins</p>
-            <p className="text-xl font-black mt-1 text-slate-900 dark:text-white">3 Incidents</p>
+            <p className="text-xl font-black mt-1 text-slate-900 dark:text-white">{isDemoMode ? "3 Incidents" : `${filteredLogs.filter(l => l.action === 'FAILED_LOGIN').length} Incident(s)`}</p>
           </div>
           <span className="text-2xl">⚠️</span>
         </div>
         <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between text-xs">
           <div>
-            <p className="font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest text-[10px]">Permission Violations</p>
-            <p className="text-xl font-black mt-1 text-slate-900 dark:text-white">1 Incident</p>
+            <p className="font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest text-[10px]">Security Event Logs</p>
+            <p className="text-xl font-black mt-1 text-slate-900 dark:text-white">{isDemoMode ? "20 Events" : `${filteredLogs.length} Events`}</p>
           </div>
           <span className="text-2xl">🚫</span>
         </div>
@@ -4799,7 +5627,7 @@ const AuditorDashboard = () => {
       <div className="glass-card border border-slate-200 dark:border-slate-500/30 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4 text-xs">
           <div className="space-y-1">
-            <label className="block text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Filter by Module</label>
+            <label className="block text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider font-sans">Filter by Module</label>
             <select
               value={filterModule}
               onChange={e => setFilterModule(e.target.value)}
@@ -4809,7 +5637,7 @@ const AuditorDashboard = () => {
             </select>
           </div>
           <div className="space-y-1">
-            <label className="block text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Filter by Role</label>
+            <label className="block text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider font-sans">Filter by Role</label>
             <select
               value={filterRole}
               onChange={e => setFilterRole(e.target.value)}
@@ -4822,7 +5650,7 @@ const AuditorDashboard = () => {
         
         <button
           onClick={handleExport}
-          className="bg-slate-200 hover:bg-slate-300 dark:bg-slate-600 dark:hover:bg-slate-700 border border-slate-350 dark:border-slate-500/30 text-slate-800 dark:text-white font-bold py-2 px-4 rounded-xl text-xs transition-all hover:scale-[1.02]"
+          className="bg-slate-200 hover:bg-slate-300 dark:bg-slate-600 dark:hover:bg-slate-700 border border-slate-350 dark:border-slate-500/30 text-slate-800 dark:text-white font-bold py-2 px-4 rounded-xl text-xs transition-all hover:scale-[1.02] cursor-pointer"
         >
           Export Logs
         </button>
@@ -4864,7 +5692,7 @@ const AuditorDashboard = () => {
         <div className="glass-card border border-slate-500/20 rounded-2xl p-5 space-y-4">
           <h3 className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Compliance Audit Status</h3>
           
-          <div className="space-y-4 text-xs">
+          <div className="space-y-4 text-xs font-sans">
             <div className="p-3 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
               <div className="flex justify-between font-bold text-emerald-800 dark:text-emerald-400"><span>Security Settings</span><span>100% COVERAGE</span></div>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Audit trail active, secrets rotation verified.</p>
