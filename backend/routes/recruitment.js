@@ -16,7 +16,7 @@ router.get('/jobs', recruitmentController.getJobs);
 router.post('/jobs', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager'), recruitmentController.createJob);
 
 // Candidates CRUD
-router.get('/candidates', recruitmentController.getCandidates);
+router.get('/candidates', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager'), recruitmentController.getCandidates);
 router.post('/candidates', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager'), recruitmentController.createCandidate);
 router.put('/candidates/:id/status', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager'), recruitmentController.updateCandidateStatus);
 router.post('/candidates/:id/rescreen', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager'), recruitmentController.rescreenCandidate);

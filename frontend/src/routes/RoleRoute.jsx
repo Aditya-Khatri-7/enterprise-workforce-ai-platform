@@ -13,8 +13,9 @@ const RoleRoute = ({ allowedRoles }) => {
 
   const activeRole = isDemoMode ? demoRole : (user?.role?.name || user?.role);
 
-  // Super Admin overrides all role checks on the frontend too
-  if (activeRole === 'Super Admin') {
+  // Super Admin overrides role checks for administrative routes on the frontend,
+  // but cannot access employee-specific routes if they do not have an employee record.
+  if (activeRole === 'Super Admin' && (allowedRoles.includes('Super Admin') || user?.employeeRef)) {
     return <Outlet />;
   }
 

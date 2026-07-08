@@ -38,13 +38,14 @@ const getSupportRequests = async (req, res) => {
     const roleName = req.user.role?.name;
     let filter = {};
 
-    if (roleName === 'Employee') {
+    if (['IT Administrator', 'Organization Admin', 'Super Admin'].includes(roleName)) {
+      // IT Admin, Org Admin, Super Admin see all tickets in their org
+      filter = { organization: req.user.organization };
+    } else {
+      // Everyone else (Employee, HR Manager, Manager, Team Lead, Finance, Auditor) sees only their own tickets
       const employee = await Employee.findOne({ userRef: req.user._id });
       if (!employee) return res.json([]);
-      filter = { employee: employee._id };
-    } else {
-      // IT Admin, Org Admin see all tickets in their org
-      filter = { organization: req.user.organization };
+      filter = { employee: employee._id, organization: req.user.organization };
     }
 
     const tickets = await SupportRequest.find(filter)

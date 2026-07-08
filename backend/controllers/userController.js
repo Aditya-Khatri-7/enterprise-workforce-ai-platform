@@ -380,6 +380,10 @@ const requestReactivation = async (req, res) => {
     const id = req.params.id === 'me' ? req.user._id : req.params.id;
     const { reason } = req.body;
 
+    if (req.user._id.toString() !== id.toString()) {
+      return res.status(403).json({ error: 'Forbidden. You can only request reactivation for yourself.' });
+    }
+
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -516,6 +520,12 @@ const reviewReactivation = async (req, res) => {
 const getReactivationStatus = async (req, res) => {
   try {
     const id = req.params.id === 'me' ? req.user._id : req.params.id;
+
+    const roleName = req.user.role?.name;
+    if (req.user._id.toString() !== id.toString() && !['Super Admin', 'Organization Admin', 'HR Manager'].includes(roleName)) {
+      return res.status(403).json({ error: 'Forbidden. You do not have permission to view this reactivation status.' });
+    }
+
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
