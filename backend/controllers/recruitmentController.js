@@ -4,6 +4,9 @@ const Employee = require('../models/Employee');
 const User = require('../models/User');
 const Role = require('../models/Role');
 const bcrypt = require('bcrypt');
+if (typeof global.DOMMatrix === 'undefined') {
+  global.DOMMatrix = class DOMMatrix {};
+}
 const pdfParse = require('pdf-parse');
 const { uploadResume, getResumeDownloadUrl } = require('../utils/cloudinary');
 const { screenResumeWithGemini } = require('../utils/geminiScreening');

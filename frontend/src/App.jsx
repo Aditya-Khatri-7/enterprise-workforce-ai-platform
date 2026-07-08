@@ -89,7 +89,7 @@ function App() {
                 <Route element={<ProtectedRoute />}>
                   <Route path="/dashboard" element={<DashboardRouter />} />
                   <Route path="/account-status" element={<AccountStatus />} />
-                  
+
                   <Route element={<DashboardLayout />}>
                     {/* Admin & Manager & Lead & Finance Routes */}
                     <Route element={<RoleRoute allowedRoles={['Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Manager', 'Department Manager', 'Team Lead', 'Finance', 'Auditor']} />}>
@@ -127,7 +127,7 @@ function App() {
                       <Route path="/employee/team-lead-requests" element={<EmployeeTeamLeadRequests />} />
                       <Route path="/employee/project-requests" element={<EmployeeProjectRequests />} />
                     </Route>
-                    
+
                     <Route path="/profile" element={<Profile />} />
                   </Route>
                 </Route>
