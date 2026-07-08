@@ -83,6 +83,8 @@ const EmployeeDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [tasks, setTasks] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [allTasks, setAllTasks] = useState([]);
 
   // Modal states
   const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -99,26 +101,32 @@ const EmployeeDashboard = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [leaveRes, ticketRes, todayRes, tasksRes] = await Promise.all([
+      const [leaveRes, ticketRes, todayRes, tasksRes, teamRes] = await Promise.all([
         api.get('/leaves'),
         api.get('/support'),
         api.get('/attendance/today').catch(() => ({ data: null })),
-        api.get('/enterprise/tasks').catch(() => ({ data: [] }))
+        api.get('/enterprise/tasks').catch(() => ({ data: [] })),
+        api.get('/teams/my-team').catch(() => ({ data: [] }))
       ]);
       setLeaves(leaveRes.data);
       setTickets(ticketRes.data);
       setTodayLog(todayRes.data);
+      setAllTasks(tasksRes.data || []);
+      setTeamMembers(teamRes.data || []);
       if (tasksRes.data && user?.employeeRef) {
-        setTasks(tasksRes.data.filter(t => t.assignedTo?._id === user.employeeRef || t.assignedTo === user.employeeRef));
+        const empId = user.employeeRef._id || user.employeeRef;
+        setTasks(tasksRes.data.filter(t => String(t.assignedTo?._id || t.assignedTo) === String(empId)));
       }
     } catch (err) {
       /* silently handle */
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => { load(); }, [load]);
+
+
 
   // Clock In / Out
   const handleClockIn = async () => {
@@ -288,57 +296,126 @@ const EmployeeDashboard = () => {
           {/* MY TASKS */}
           <div className="glass-card border border-emerald-500/20 rounded-2xl p-5 space-y-4">
             <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">My Assigned Tasks</h3>
-            <div className="p-4 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/45 rounded-xl space-y-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h4 className="font-bold text-sm text-slate-900 dark:text-white">API Integration</h4>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Project: <span className="text-emerald-700 dark:text-emerald-350 font-semibold">Employee Portal v2</span></p>
-                </div>
-                <span className="px-2 py-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 text-[9px] uppercase tracking-widest font-black">HIGH PRIORITY</span>
-              </div>
+            
+            {tasks.length > 0 ? (
+              <div className="space-y-4">
+                {tasks.map(task => {
+                  const statusMapToSlider = {
+                    'Pending': 0,
+                    'In Progress': 50,
+                    'Review': 85,
+                    'Completed': 100
+                  };
+                  const progressValue = statusMapToSlider[task.status] || 0;
 
-              {/* Status Selector Dropdown */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-3 text-xs">
-                <div className="space-y-1">
-                  <label className="block text-slate-500 dark:text-slate-400 font-bold uppercase text-[9px]">Task Status</label>
-                  <select 
-                    value={riyaTaskStatus} 
-                    onChange={(e) => {
-                      setRiyaTaskStatus(e.target.value);
-                      toast.success(`Task status marked as ${e.target.value}!`);
-                    }} 
-                    className="w-full bg-slate-50 dark:bg-[#0E1325] border border-slate-200 dark:border-[#1F2647] rounded-xl p-2 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-bold font-mono"
-                  >
-                    <option>To Do</option>
-                    <option>In Progress</option>
-                    <option>Review</option>
-                    <option>Completed</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-slate-500 dark:text-slate-400 font-bold uppercase text-[9px]">Deadline</label>
-                  <p className="p-2 border border-slate-200 dark:border-[#1F2647] bg-slate-50/20 dark:bg-[#0E1325]/30 rounded-xl font-semibold font-mono text-cyan-705 dark:text-cyan-300">2026-07-15</p>
-                </div>
-              </div>
+                  return (
+                    <div key={task._id} className="p-4 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/45 rounded-xl space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900 dark:text-white">{task.title}</h4>
+                          <p className="text-[10px] text-slate-550 dark:text-slate-400 mt-1">{task.description}</p>
+                        </div>
+                      </div>
 
-              {/* Progress Slider (Updates synced store context in real time) */}
-              <div className="space-y-2 border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-3">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-550 dark:text-slate-400 uppercase font-black tracking-widest text-[9px]">Task Progress Completion</span>
-                  <span className="text-slate-900 dark:text-white font-bold font-mono">{riyaProgress}%</span>
+                      {/* Status Selector Dropdown */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-3 text-xs">
+                        <div className="space-y-1">
+                          <label className="block text-slate-500 dark:text-slate-400 font-bold uppercase text-[9px]">Task Status</label>
+                          <select 
+                            value={task.status} 
+                            onChange={async (e) => {
+                              const newStatus = e.target.value;
+                              try {
+                                await api.put(`/enterprise/tasks/${task._id}`, { status: newStatus });
+                                toast.success(`Task status marked as ${newStatus}!`);
+                                load();
+                              } catch (err) {
+                                toast.error('Failed to update task status');
+                              }
+                            }} 
+                            className="w-full bg-slate-50 dark:bg-[#0E1325] border border-slate-200 dark:border-[#1F2647] rounded-xl p-2 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-bold font-mono"
+                          >
+                            <option value="Pending">To Do / Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Review">Review</option>
+                            <option value="Completed">Completed</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-slate-500 dark:text-slate-400 font-bold uppercase text-[9px]">Deadline</label>
+                          <p className="p-2 border border-slate-200 dark:border-[#1F2647] bg-slate-50/20 dark:bg-[#0E1325]/30 rounded-xl font-semibold font-mono text-cyan-705 dark:text-cyan-300">
+                            {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No Deadline'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Progress representation */}
+                      <div className="space-y-2 border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-3">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-550 dark:text-slate-400 uppercase font-black tracking-widest text-[9px]">Task Progress Completion</span>
+                          <span className="text-slate-900 dark:text-white font-bold font-mono">{progressValue}%</span>
+                        </div>
+                        <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-250 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${progressValue}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-4 border border-slate-200 dark:border-[#1F2647] bg-slate-50/50 dark:bg-[#0E1325]/45 rounded-xl space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-white">API Integration</h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Project: <span className="text-emerald-700 dark:text-emerald-350 font-semibold">Employee Portal v2</span></p>
+                  </div>
+                  <span className="px-2 py-0.5 bg-red-500/10 text-red-650 dark:text-red-400 border border-red-500/20 text-[9px] uppercase tracking-widest font-black">HIGH PRIORITY</span>
                 </div>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={riyaProgress}
-                    onChange={handleSliderChange}
-                    className="w-full accent-emerald-500 h-1.5 bg-slate-200 dark:bg-[#0E1325] rounded-lg appearance-none cursor-pointer"
-                  />
+
+                {/* Status Selector Dropdown */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-3 text-xs">
+                  <div className="space-y-1">
+                    <label className="block text-slate-500 dark:text-slate-400 font-bold uppercase text-[9px]">Task Status</label>
+                    <select 
+                      value={riyaTaskStatus} 
+                      onChange={(e) => {
+                        setRiyaTaskStatus(e.target.value);
+                        toast.success(`Task status marked as ${e.target.value}!`);
+                      }} 
+                      className="w-full bg-slate-50 dark:bg-[#0E1325] border border-slate-200 dark:border-[#1F2647] rounded-xl p-2 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-bold font-mono"
+                    >
+                      <option>To Do</option>
+                      <option>In Progress</option>
+                      <option>Review</option>
+                      <option>Completed</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-slate-500 dark:text-slate-400 font-bold uppercase text-[9px]">Deadline</label>
+                    <p className="p-2 border border-slate-200 dark:border-[#1F2647] bg-slate-50/20 dark:bg-[#0E1325]/30 rounded-xl font-semibold font-mono text-cyan-705 dark:text-cyan-300">2026-07-15</p>
+                  </div>
+                </div>
+
+                {/* Progress Slider (Updates synced store context in real time) */}
+                <div className="space-y-2 border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-3">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-550 dark:text-slate-400 uppercase font-black tracking-widest text-[9px]">Task Progress Completion</span>
+                    <span className="text-slate-900 dark:text-white font-bold font-mono">{riyaProgress}%</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={riyaProgress}
+                      onChange={handleSliderChange}
+                      className="w-full accent-emerald-500 h-1.5 bg-slate-200 dark:bg-[#0E1325] rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* MY TEAM'S PROGRESS */}
@@ -349,46 +426,84 @@ const EmployeeDashboard = () => {
             </div>
             
             <div className="space-y-3.5">
-              {/* Riya Sharma */}
-              <div className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/30 rounded-xl space-y-2">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-slate-850 dark:text-white">Riya Sharma (You)</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-mono">{riyaProgress}%</span>
-                </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-450 font-mono">&gt; Task: API Integration</p>
-                <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-250 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${riyaProgress}%` }} />
-                </div>
-              </div>
+              {teamMembers.length > 0 ? (
+                teamMembers.map(member => {
+                  const memberTasks = allTasks.filter(t => {
+                    const assignedId = t.assignedTo?._id || t.assignedTo;
+                    return String(assignedId) === String(member._id);
+                  });
+                  const latestTask = memberTasks.length > 0 
+                    ? memberTasks.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))[0] 
+                    : null;
 
-              {/* Karan Patel */}
-              <div className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/30 rounded-xl space-y-2">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-slate-850 dark:text-white">Karan Patel</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-mono">{karanProgress}%</span>
-                </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-455 font-mono">&gt; Task: UI Components</p>
-                <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-250 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${karanProgress}%` }} />
-                </div>
-              </div>
+                  const statusMapToSlider = {
+                    'Pending': 0,
+                    'In Progress': 50,
+                    'Review': 85,
+                    'Completed': 100
+                  };
+                  const progressValue = latestTask ? (statusMapToSlider[latestTask.status] || 0) : 0;
+                  const taskTitle = latestTask ? latestTask.title : 'No active tasks';
+                  const isCurrentUser = String(member._id) === String(user?.employeeRef?._id || user?.employeeRef);
 
-              {/* Priya Singh */}
-              <div className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/30 rounded-xl space-y-2">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-slate-850 dark:text-white">Priya Singh</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-mono">{priyaProgress}%</span>
-                </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-455 font-mono">&gt; Task: Testing</p>
-                <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-250 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${priyaProgress}%` }} />
-                </div>
-              </div>
+                  return (
+                    <div key={member._id} className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/30 rounded-xl space-y-2">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-slate-850 dark:text-white">
+                          {member.firstName} {member.lastName} {isCurrentUser && '(You)'}
+                        </span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-mono">{progressValue}%</span>
+                      </div>
+                      <p className="text-[10px] text-slate-550 dark:text-slate-455 font-mono">&gt; Task: {taskTitle}</p>
+                      <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-250 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${progressValue}%` }} />
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <>
+                  {/* Riya Sharma */}
+                  <div className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/30 rounded-xl space-y-2">
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="text-slate-850 dark:text-white">{firstName} Sharma (You)</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-mono">{riyaProgress}%</span>
+                    </div>
+                    <p className="text-[10px] text-slate-550 dark:text-slate-450 font-mono">&gt; Task: API Integration</p>
+                    <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-250 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${riyaProgress}%` }} />
+                    </div>
+                  </div>
+
+                  {/* Karan Patel */}
+                  <div className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/30 rounded-xl space-y-2">
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="text-slate-850 dark:text-white">Karan Patel</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-mono">{karanProgress}%</span>
+                    </div>
+                    <p className="text-[10px] text-slate-550 dark:text-slate-455 font-mono">&gt; Task: UI Components</p>
+                    <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-250 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${karanProgress}%` }} />
+                    </div>
+                  </div>
+
+                  {/* Priya Singh */}
+                  <div className="p-3 border border-slate-200 dark:border-[#1F2647] bg-slate-50/30 dark:bg-[#0E1325]/30 rounded-xl space-y-2">
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="text-slate-850 dark:text-white">Priya Singh</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-mono">{priyaProgress}%</span>
+                    </div>
+                    <p className="text-[10px] text-slate-550 dark:text-slate-455 font-mono">&gt; Task: Testing</p>
+                    <div className="w-full bg-slate-200 dark:bg-slate-900 border border-slate-250 dark:border-[#1F2647] h-2 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${priyaProgress}%` }} />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
-
-        {/* Right Columns: Actions and Schedule */}
+{/* Right Columns: Actions and Schedule */}
         <div className="space-y-6">
           {/* Quick Actions Panel */}
           <div className="glass-card border border-emerald-500/20 rounded-2xl p-5 space-y-4">

@@ -7,5 +7,6 @@ router.use(authenticateUser);
 
 router.put('/reassign', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager', 'Team Lead'), teamController.reassignEmployee);
 router.get('/available-leads', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager', 'Team Lead'), teamController.getAvailableLeads);
+router.get('/my-team', teamController.getMyTeam);
 
 module.exports = router;

@@ -110,13 +110,12 @@ const createEmployee = async (req, res) => {
     await user.save();
 
     // 5. Audit Log
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'EMPLOYEE_CREATED',
-      userRef: req.user._id,
-      targetUserRef: user._id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Created employee: ${employeeId}`
+      targetUserId: user._id,
+      details: `Created employee: ${employeeId}`,
+      req
     });
 
     // 6. Send welcome email with credentials
@@ -291,13 +290,12 @@ const updateEmployee = async (req, res) => {
 
     await request.save();
 
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'EMPLOYEE_UPDATED',
-      userRef: req.user._id,
-      targetUserRef: employeeToUpdate.userRef,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Profile change request submitted: Request ID ${request._id}`
+      targetUserId: employeeToUpdate.userRef,
+      details: `Profile change request submitted: Request ID ${request._id}`,
+      req
     });
 
     res.json({
@@ -327,12 +325,11 @@ const deleteEmployee = async (req, res) => {
 
     await User.findByIdAndUpdate(employee.userRef, { isActive: false, isLocked: true });
 
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'EMPLOYEE_ARCHIVED',
-      userRef: req.user._id,
-      targetUserRef: employee.userRef,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent']
+      targetUserId: employee.userRef,
+      req
     });
 
     res.json({ message: 'Employee archived successfully' });

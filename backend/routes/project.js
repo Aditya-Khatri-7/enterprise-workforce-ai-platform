@@ -11,6 +11,7 @@ router.post('/', authorizeRoles('Super Admin', 'Organization Admin', 'Manager'),
 router.put('/:id/assign', authorizeRoles('Super Admin', 'Organization Admin', 'Manager'), projectController.assignProjectToTL);
 router.put('/:id/agree', projectController.agreeToProject);
 router.put('/:id/tl-accept', projectController.tlAcceptProject);
+router.put('/:id/staff', authorizeRoles('Super Admin', 'Organization Admin', 'Manager', 'Team Lead'), projectController.updateProjectStaff);
 router.put('/:id/reject', projectController.rejectProject);
 
 // Project requests (swap/change)

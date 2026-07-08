@@ -129,7 +129,8 @@ const login = async (req, res) => {
         action: 'FAILED_LOGIN',
         userRef: user._id,
         ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+        userAgent: req.headers['user-agent'],
+        organization: user.organization
       });
 
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -160,7 +161,8 @@ const login = async (req, res) => {
       action: 'LOGIN',
       userRef: user._id,
       ipAddress: req.ip,
-      userAgent: req.headers['user-agent']
+      userAgent: req.headers['user-agent'],
+      organization: user.organization
     });
 
     res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: getAccessTokenExpiryMs() }); // matching config
@@ -201,7 +203,8 @@ const logout = async (req, res) => {
         action: 'LOGOUT',
         userRef: req.user._id,
         ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+        userAgent: req.headers['user-agent'],
+        organization: req.user.organization
       });
     }
 
@@ -293,7 +296,8 @@ const changePassword = async (req, res) => {
       action: 'PASSWORD_CHANGE',
       userRef: user._id,
       ipAddress: req.ip,
-      userAgent: req.headers['user-agent']
+      userAgent: req.headers['user-agent'],
+      organization: user.organization
     });
 
     res.json({ message: 'Password changed successfully' });
@@ -357,7 +361,8 @@ const resetPassword = async (req, res) => {
       action: 'PASSWORD_CHANGE',
       userRef: user._id,
       ipAddress: req.ip,
-      userAgent: req.headers['user-agent']
+      userAgent: req.headers['user-agent'],
+      organization: user.organization
     });
 
     res.json({ message: 'Password has been reset successfully' });

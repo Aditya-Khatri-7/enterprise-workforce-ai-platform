@@ -5,7 +5,7 @@ const { authenticateUser, authorizeRoles } = require('../middlewares/auth');
 
 router.use(authenticateUser);
 
-// Only Super Admin can view audit logs
-router.get('/', authorizeRoles('Super Admin'), auditController.getAuditLogs);
+// Authorized roles can view audit logs (Organization level roles will be filtered by organization)
+router.get('/', authorizeRoles('Super Admin', 'Organization Admin', 'HR Manager', 'IT Administrator', 'Auditor'), auditController.getAuditLogs);
 
 module.exports = router;

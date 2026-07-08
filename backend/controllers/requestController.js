@@ -5,6 +5,7 @@ const Role = require('../models/Role');
 const LeaveRequest = require('../models/LeaveRequest');
 const Asset = require('../models/Asset');
 const AuditLog = require('../models/AuditLog');
+const { writeAuditLog } = require('../utils/notification');
 
 const createRequest = async (req, res) => {
   try {
@@ -39,13 +40,12 @@ const createRequest = async (req, res) => {
 
     await request.save();
 
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'USER_CREATED', // map to general creations in enum
-      userRef: req.user._id,
-      targetUserRef: targetUserId || req.user._id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Created request ID: ${request._id} (${requestType})`
+      targetUserId: targetUserId || req.user._id,
+      details: `Created request ID: ${request._id} (${requestType})`,
+      req
     });
 
     res.status(201).json({ message: 'Request submitted successfully', request });
@@ -218,13 +218,12 @@ const takeRequestAction = async (req, res) => {
 
     await request.save();
 
-    await AuditLog.create({
+    await writeAuditLog({
+      userId: req.user._id,
       action: 'USER_STATUS_UPDATED',
-      userRef: req.user._id,
-      targetUserRef: request.targetUser,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: `Request action: ${status} for Request ID: ${request._id}`
+      targetUserId: request.targetUser,
+      details: `Request action: ${status} for Request ID: ${request._id}`,
+      req
     });
 
     res.json({ message: `Request has been ${status.toLowerCase()} successfully`, request });

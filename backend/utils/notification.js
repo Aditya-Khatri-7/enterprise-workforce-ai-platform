@@ -26,10 +26,19 @@ const createNotification = async ({ recipient, title, message, organization }) =
 /**
  * Creates an Audit Log entry in DB
  */
-const writeAuditLog = async ({ userId, action, targetUserId, details, req }) => {
+const writeAuditLog = async ({ userId, action, targetUserId, details, req, organization }) => {
   try {
     const ipAddress = req ? req.ip : '127.0.0.1';
     const userAgent = req ? req.headers['user-agent'] : 'System';
+
+    let orgId = organization || req?.user?.organization || null;
+    if (!orgId && userId) {
+      const User = require('../models/User');
+      const user = await User.findById(userId);
+      if (user) {
+        orgId = user.organization;
+      }
+    }
 
     await AuditLog.create({
       action,
@@ -37,7 +46,8 @@ const writeAuditLog = async ({ userId, action, targetUserId, details, req }) => 
       targetUserRef: targetUserId || null,
       ipAddress,
       userAgent,
-      details: typeof details === 'object' ? JSON.stringify(details) : details
+      details: typeof details === 'object' ? JSON.stringify(details) : details,
+      organization: orgId
     });
   } catch (error) {
     console.error('Error writing audit log:', error);
