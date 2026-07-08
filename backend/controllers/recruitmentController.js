@@ -4,6 +4,48 @@ const Employee = require('../models/Employee');
 const User = require('../models/User');
 const Role = require('../models/Role');
 const bcrypt = require('bcrypt');
+const pdfParse = require('pdf-parse');
+const { uploadResume, getResumeDownloadUrl } = require('../utils/cloudinary');
+const { screenResumeWithGemini } = require('../utils/geminiScreening');
+
+const extractResumeText = async (buffer, mimetype) => {
+  if (mimetype === 'application/pdf') {
+    try {
+      const data = await pdfParse(buffer);
+      return data.text?.slice(0, 8000) || '';
+    } catch {
+      return '';
+    }
+  }
+  return '';
+};
+
+const runGeminiScreening = async (job, candidateData, resumeText) => {
+  try {
+    return await screenResumeWithGemini({
+      jobTitle: job.title,
+      jobDescription: job.description,
+      resumeText,
+      ...candidateData
+    });
+  } catch (err) {
+    console.error('Gemini screening fallback:', err.message);
+    const parsedSkills = Array.isArray(candidateData.skills)
+      ? candidateData.skills
+      : (candidateData.skills || '').split(',').map(s => s.trim()).filter(Boolean);
+    return {
+      aiScore: Math.min(100, Math.max(20, 40 + parsedSkills.length * 5 + (candidateData.experience || 0) * 3)),
+      skillsMatch: parsedSkills.slice(0, 3),
+      skillsMissing: ['Could not complete full AI analysis'],
+      strengths: ['Application submitted successfully'],
+      weaknesses: ['AI screening unavailable — manual review recommended'],
+      experienceAnalysis: `${candidateData.experience || 0} years of experience listed.`,
+      overallAssessment: 'Automated Gemini screening was unavailable. Please review manually.',
+      recommendation: 'Hold for Review',
+      summary: `${candidateData.candidateName} applied for ${job.title}. Manual screening required.`
+    };
+  }
+};
 
 const getJobs = async (req, res) => {
   try {
@@ -14,6 +56,32 @@ const getJobs = async (req, res) => {
   } catch (error) {
     console.error('Get Jobs Error:', error);
     res.status(500).json({ error: 'Server error fetching job postings' });
+  }
+};
+
+const getPublicJobs = async (_req, res) => {
+  try {
+    const jobs = await JobPosting.find({ status: 'Active' })
+      .populate('organization', 'name')
+      .sort({ createdAt: -1 })
+      .select('title department description status createdAt organization');
+    res.json(jobs);
+  } catch (error) {
+    console.error('Get Public Jobs Error:', error);
+    res.status(500).json({ error: 'Server error fetching public job postings' });
+  }
+};
+
+const getPublicJobById = async (req, res) => {
+  try {
+    const job = await JobPosting.findOne({ _id: req.params.id, status: 'Active' })
+      .populate('organization', 'name')
+      .select('title department description status createdAt organization');
+    if (!job) return res.status(404).json({ error: 'Job posting not found or no longer active' });
+    res.json(job);
+  } catch (error) {
+    console.error('Get Public Job Error:', error);
+    res.status(500).json({ error: 'Server error fetching job posting' });
   }
 };
 
@@ -42,13 +110,93 @@ const getCandidates = async (req, res) => {
   try {
     const orgId = req.user.organization;
     if (!orgId) return res.json([]);
-    const candidates = await Candidate.find({ organization: orgId })
+    const { jobId } = req.query;
+    const filter = { organization: orgId };
+    if (jobId) filter.jobPosting = jobId;
+
+    const candidates = await Candidate.find(filter)
       .populate('jobPosting', 'title department')
-      .sort({ createdAt: -1 });
+      .sort({ aiScore: -1, createdAt: -1 });
     res.json(candidates);
   } catch (error) {
     console.error('Get Candidates Error:', error);
     res.status(500).json({ error: 'Server error fetching candidates' });
+  }
+};
+
+const applyToJob = async (req, res) => {
+  try {
+    const { candidateName, email, experience, skills, phone, coverLetter, jobPostingId } = req.body;
+
+    if (!candidateName || !email || !experience || !jobPostingId) {
+      return res.status(400).json({ error: 'Name, email, experience, and job are required' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Resume file is required' });
+    }
+
+    const job = await JobPosting.findOne({ _id: jobPostingId, status: 'Active' });
+    if (!job) return res.status(404).json({ error: 'Job posting not found or no longer accepting applications' });
+
+    const existing = await Candidate.findOne({ email, jobPosting: jobPostingId });
+    if (existing) {
+      return res.status(400).json({ error: 'You have already applied for this position' });
+    }
+
+    let cloudinaryResult;
+    try {
+      cloudinaryResult = await uploadResume(req.file.buffer, req.file.originalname);
+    } catch (uploadErr) {
+      console.error('Cloudinary upload error:', uploadErr);
+      return res.status(500).json({ error: 'Failed to upload resume. Please try again.' });
+    }
+
+    const resumeText = await extractResumeText(req.file.buffer, req.file.mimetype);
+    const parsedSkills = Array.isArray(skills)
+      ? skills
+      : (skills || '').split(',').map(s => s.trim()).filter(Boolean);
+
+    const screening = await runGeminiScreening(
+      job,
+      { candidateName, email, experience: Number(experience), skills: parsedSkills, phone, coverLetter },
+      resumeText
+    );
+
+    const candidate = new Candidate({
+      candidateName,
+      email,
+      experience: Number(experience),
+      skills: parsedSkills,
+      phone,
+      coverLetter,
+      jobPosting: jobPostingId,
+      organization: job.organization,
+      resumeUrl: cloudinaryResult.secure_url,
+      resumePublicId: cloudinaryResult.public_id,
+      resumeFileName: req.file.originalname,
+      status: 'Resume Screening',
+      aiScore: screening.aiScore,
+      aiReport: {
+        skillsMatch: screening.skillsMatch || [],
+        skillsMissing: screening.skillsMissing || [],
+        strengths: screening.strengths || [],
+        weaknesses: screening.weaknesses || [],
+        experienceAnalysis: screening.experienceAnalysis || '',
+        overallAssessment: screening.overallAssessment || '',
+        recommendation: screening.recommendation || '',
+        summary: screening.summary || ''
+      }
+    });
+
+    await candidate.save();
+    res.status(201).json({
+      message: 'Application submitted successfully! Our HR team will review your profile.',
+      candidateId: candidate._id,
+      aiScore: candidate.aiScore
+    });
+  } catch (error) {
+    console.error('Apply To Job Error:', error);
+    res.status(500).json({ error: 'Server error submitting application' });
   }
 };
 
@@ -59,28 +207,34 @@ const createCandidate = async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     const orgId = req.user.organization;
+    const job = await JobPosting.findOne({ _id: jobPostingId, organization: orgId });
+    if (!job) return res.status(404).json({ error: 'Job posting not found' });
 
-    // Simulate AI screening score and analysis report based on keywords
-    const matchSkills = ['React', 'Node.js', 'Express', 'MongoDB', 'JavaScript', 'CSS', 'HTML', 'Git'];
     const parsedSkills = Array.isArray(skills) ? skills : (skills || '').split(',').map(s => s.trim()).filter(Boolean);
-    
-    const matched = parsedSkills.filter(s => matchSkills.some(ms => ms.toLowerCase() === s.toLowerCase()));
-    const missing = matchSkills.filter(ms => !parsedSkills.some(s => s.toLowerCase() === ms.toLowerCase()));
-    
-    const aiScore = Math.min(100, Math.max(30, Math.round((matched.length / matchSkills.length) * 100) + (experience * 5)));
-    
+    const screening = await runGeminiScreening(
+      job,
+      { candidateName, email, experience: Number(experience), skills: parsedSkills },
+      ''
+    );
+
     const candidate = new Candidate({
       candidateName,
       email,
-      experience,
+      experience: Number(experience),
       skills: parsedSkills,
       jobPosting: jobPostingId,
       organization: orgId,
-      aiScore,
+      status: 'Resume Screening',
+      aiScore: screening.aiScore,
       aiReport: {
-        skillsMatch: matched,
-        skillsMissing: missing,
-        summary: `${candidateName} has ${experience} years of experience. Matching ${matched.length} key required skills. Recommended status: screening.`
+        skillsMatch: screening.skillsMatch || [],
+        skillsMissing: screening.skillsMissing || [],
+        strengths: screening.strengths || [],
+        weaknesses: screening.weaknesses || [],
+        experienceAnalysis: screening.experienceAnalysis || '',
+        overallAssessment: screening.overallAssessment || '',
+        recommendation: screening.recommendation || '',
+        summary: screening.summary || ''
       }
     });
 
@@ -89,6 +243,72 @@ const createCandidate = async (req, res) => {
   } catch (error) {
     console.error('Create Candidate Error:', error);
     res.status(500).json({ error: 'Server error creating candidate' });
+  }
+};
+
+const rescreenCandidate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const orgId = req.user.organization;
+
+    const candidate = await Candidate.findOne({ _id: id, organization: orgId }).populate('jobPosting');
+    if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+
+    const screening = await runGeminiScreening(
+      candidate.jobPosting,
+      {
+        candidateName: candidate.candidateName,
+        email: candidate.email,
+        experience: candidate.experience,
+        skills: candidate.skills,
+        phone: candidate.phone,
+        coverLetter: candidate.coverLetter
+      },
+      ''
+    );
+
+    candidate.aiScore = screening.aiScore;
+    candidate.aiReport = {
+      skillsMatch: screening.skillsMatch || [],
+      skillsMissing: screening.skillsMissing || [],
+      strengths: screening.strengths || [],
+      weaknesses: screening.weaknesses || [],
+      experienceAnalysis: screening.experienceAnalysis || '',
+      overallAssessment: screening.overallAssessment || '',
+      recommendation: screening.recommendation || '',
+      summary: screening.summary || ''
+    };
+    await candidate.save();
+
+    res.json({ message: 'AI screening completed', candidate });
+  } catch (error) {
+    console.error('Rescreen Candidate Error:', error);
+    res.status(500).json({ error: 'Server error running AI screening' });
+  }
+};
+
+const getResumeDownload = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const orgId = req.user.organization;
+
+    const candidate = await Candidate.findOne({ _id: id, organization: orgId });
+    if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+    if (!candidate.resumePublicId && !candidate.resumeUrl) {
+      return res.status(404).json({ error: 'No resume uploaded for this candidate' });
+    }
+
+    const downloadUrl = candidate.resumePublicId
+      ? getResumeDownloadUrl(candidate.resumePublicId)
+      : candidate.resumeUrl;
+
+    res.json({
+      downloadUrl,
+      fileName: candidate.resumeFileName || `${candidate.candidateName}_resume.pdf`
+    });
+  } catch (error) {
+    console.error('Get Resume Download Error:', error);
+    res.status(500).json({ error: 'Server error fetching resume download link' });
   }
 };
 
@@ -104,7 +324,7 @@ const updateCandidateStatus = async (req, res) => {
       { new: true }
     );
     if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
-    
+
     res.json({ message: `Candidate status updated to ${status}`, candidate });
   } catch (error) {
     console.error('Update Candidate Status Error:', error);
@@ -120,18 +340,15 @@ const hiredToEmployee = async (req, res) => {
     const candidate = await Candidate.findOne({ _id: candidateId, organization: orgId }).populate('jobPosting');
     if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
 
-    // Ensure Candidate is Offered or Hired before converting
     if (candidate.status !== 'Offered' && candidate.status !== 'Hired') {
       return res.status(400).json({ error: 'Candidate must be Offered or Hired status to convert' });
     }
 
-    // Check if employee already exists with candidate's email
     const existingEmp = await Employee.findOne({ email: candidate.email, organization: orgId });
     if (existingEmp) {
       return res.status(400).json({ error: 'An employee with this email already exists' });
     }
 
-    // Auto-generate employee ID
     let employeeId = 'EMP0001';
     const lastEmployee = await Employee.findOne().sort({ employeeId: -1 });
     if (lastEmployee) {
@@ -145,7 +362,6 @@ const hiredToEmployee = async (req, res) => {
       }
     }
 
-    // Create Employee record
     const parts = candidate.candidateName.split(' ');
     const firstName = parts[0];
     const lastName = parts.slice(1).join(' ') || 'Hired';
@@ -164,7 +380,6 @@ const hiredToEmployee = async (req, res) => {
     });
     await employee.save();
 
-    // Create User credentials
     const employeeRole = await Role.findOne({ name: 'Employee' });
     const username = (firstName + lastName[0]).toLowerCase() + Math.floor(100 + Math.random() * 900);
     const tempPassword = 'Temp@' + Math.floor(1000 + Math.random() * 9000);
@@ -181,11 +396,9 @@ const hiredToEmployee = async (req, res) => {
     });
     await newUser.save();
 
-    // Link user back to employee
     employee.userRef = newUser._id;
     await employee.save();
 
-    // Mark candidate as Hired
     candidate.status = 'Hired';
     await candidate.save();
 
@@ -201,9 +414,14 @@ const hiredToEmployee = async (req, res) => {
 
 module.exports = {
   getJobs,
+  getPublicJobs,
+  getPublicJobById,
   createJob,
   getCandidates,
+  applyToJob,
   createCandidate,
+  rescreenCandidate,
+  getResumeDownload,
   updateCandidateStatus,
   hiredToEmployee
 };

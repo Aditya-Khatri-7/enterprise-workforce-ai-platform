@@ -8,8 +8,9 @@ import { DemoContext, DemoProgressContext } from '../context/DemoContext';
 import {
   Shield, Cpu, Users, Briefcase, Activity, User, DollarSign, Terminal, FileText,
   Settings, CheckCircle, AlertTriangle, AlertCircle, Play, Plus, Trash, Edit,
-  ArrowRight, RefreshCw, Layers, ShieldAlert, Award, Calendar, Clock, Lock
+  ArrowRight, RefreshCw, Layers, ShieldAlert, Award, Calendar, Clock, Lock, Brain
 } from 'lucide-react';
+import RecruitmentPanel from '../components/recruitment/RecruitmentPanel';
 import {
   ResponsiveContainer,
   PieChart,
@@ -1616,7 +1617,7 @@ const HRManagerDashboard = () => {
 
   // NEW HR STATES
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'staff' | 'reactivations' | 'progress-reports'
+  const [activeTab, setActiveTab] = useState('recruitment'); // 'recruitment' | 'overview' | 'staff' | 'reactivations' | 'progress-reports'
   const [users, setUsers] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -1862,7 +1863,19 @@ const HRManagerDashboard = () => {
   return (
     <div className="space-y-6 text-slate-800 dark:text-white">
       {/* Navigation Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-indigo-500/20 pb-1 gap-4">
+      <div className="flex border-b border-slate-200 dark:border-indigo-500/20 pb-1 gap-4 flex-wrap">
+        <button
+          onClick={() => setActiveTab('recruitment')}
+          className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer bg-transparent border-0 flex items-center gap-1.5 ${activeTab === 'recruitment' ? 'border-teal-500 text-teal-600 dark:text-teal-400' : 'border-transparent text-slate-400 hover:text-slate-250'}`}
+        >
+          <Brain className="h-3.5 w-3.5" />
+          Job Postings & Screening
+          {candidates.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-teal-500/20 text-teal-600 dark:text-teal-400">
+              {candidates.length}
+            </span>
+          )}
+        </button>
         <button
           onClick={() => setActiveTab('overview')}
           className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer bg-transparent border-0 ${activeTab === 'overview' ? 'border-teal-500 text-teal-600 dark:text-teal-400' : 'border-transparent text-slate-400 hover:text-slate-250'}`}
@@ -1893,6 +1906,15 @@ const HRManagerDashboard = () => {
           TL Progress Reports
         </button>
       </div>
+
+      {activeTab === 'recruitment' && (
+        <RecruitmentPanel
+          jobs={jobs}
+          candidates={candidates}
+          departments={departments}
+          onRefresh={loadHRData}
+        />
+      )}
 
       {activeTab === 'overview' && (
         <>

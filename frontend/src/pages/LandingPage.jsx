@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Terminal, Shield, Cpu, Users, BarChart3, Clock, 
   ArrowRight, Activity, Globe, HardDrive, Compass, Layers, 
-  CheckCircle2, Sparkles, Server, Zap
+  CheckCircle2, Sparkles, Server, Zap, Briefcase, MapPin
 } from 'lucide-react';
 import BootOverlay from '../components/boot/BootOverlay';
+import publicApi from '../services/publicApi';
 
 // Self-contained Animated Count-up component
 const AnimatedCounter = ({ value, duration = 1.8 }) => {
@@ -89,6 +90,24 @@ const LandingPage = () => {
   ];
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const [isTestimonialHovered, setIsTestimonialHovered] = useState(false);
+
+  // Careers / Job listings
+  const [publicJobs, setPublicJobs] = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        const res = await publicApi.get('/recruitment/public/jobs');
+        setPublicJobs(res.data || []);
+      } catch {
+        setPublicJobs([]);
+      } finally {
+        setJobsLoading(false);
+      }
+    };
+    fetchJobs();
+  }, []);
 
   // Track Mouse movement for radial cursor lighting
   useEffect(() => {
@@ -607,6 +626,83 @@ const LandingPage = () => {
                   </div>
                 ))}
               </div>
+            </section>
+
+            {/* CAREERS / OPEN POSITIONS SECTION */}
+            <section id="careers" className="px-6 py-28 max-w-7xl mx-auto space-y-16 relative z-10">
+              <div className="text-center space-y-4">
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6 }}
+                  className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight"
+                >
+                  Open Career Positions
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                  className="max-w-xl mx-auto text-slate-450 text-sm leading-relaxed"
+                >
+                  Join our team. Browse active openings and apply directly with your resume.
+                </motion.p>
+              </div>
+
+              {jobsLoading ? (
+                <div className="flex justify-center py-12">
+                  <Activity className="h-8 w-8 text-indigo-400 animate-spin" />
+                </div>
+              ) : publicJobs.length === 0 ? (
+                <div className="text-center py-16 bg-slate-900/30 border border-slate-800 rounded-2xl">
+                  <Briefcase className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+                  <p className="text-slate-400 text-sm">No open positions at the moment. Check back soon!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {publicJobs.map((job, i) => (
+                    <motion.div
+                      key={job._id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.4, delay: i * 0.1 }}
+                      whileHover={{ y: -4 }}
+                      className="bg-slate-900/40 border border-slate-800 hover:border-indigo-500/30 rounded-2xl p-6 flex flex-col space-y-4 transition-all"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="p-2.5 bg-indigo-500/10 rounded-xl">
+                          <Briefcase className="h-5 w-5 text-indigo-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base font-bold text-white truncate">{job.title}</h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <MapPin className="h-3 w-3 text-slate-500" />
+                            <span className="text-xs text-indigo-400">{job.department}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed line-clamp-3 flex-1">
+                        {job.description}
+                      </p>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          Posted {new Date(job.createdAt).toLocaleDateString()}
+                        </span>
+                        <button
+                          onClick={() => navigate(`/careers/${job._id}/apply`)}
+                          className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 border-0 cursor-pointer"
+                        >
+                          Apply Job
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </section>
 
             {/* LIFECYCLE SECTION (TIMELINE SCROLL TRIGGERED) */}
