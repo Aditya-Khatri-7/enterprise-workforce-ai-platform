@@ -21,7 +21,19 @@ const candidateSchema = new mongoose.Schema({
     enum: ['Applied', 'Resume Screening', 'Technical Interview', 'HR Interview', 'Offered', 'Hired', 'Rejected'],
     default: 'Applied'
   },
+  phone: {
+    type: String
+  },
+  coverLetter: {
+    type: String
+  },
   resumeUrl: {
+    type: String
+  },
+  resumePublicId: {
+    type: String
+  },
+  resumeFileName: {
     type: String
   },
   aiScore: {
@@ -31,6 +43,11 @@ const candidateSchema = new mongoose.Schema({
   aiReport: {
     skillsMatch: [String],
     skillsMissing: [String],
+    strengths: [String],
+    weaknesses: [String],
+    experienceAnalysis: String,
+    overallAssessment: String,
+    recommendation: String,
     summary: String
   },
   jobPosting: {

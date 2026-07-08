@@ -12,6 +12,7 @@ import RoleRoute from './routes/RoleRoute';
 
 // Pages
 import LandingPage from './pages/LandingPage';
+import JobApplicationPage from './pages/JobApplicationPage';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import AdminDashboard from './pages/AdminDashboard';
@@ -73,6 +74,7 @@ function App() {
               <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<LandingPage />} />
+                <Route path="/careers/:jobId/apply" element={<JobApplicationPage />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/welcome" element={<AIWelcomePage />} />
                 <Route path="/demo" element={<DemoPlaceholderPage />} />
