@@ -13,6 +13,15 @@ const CANDIDATE_STATUSES = [
 ];
 
 const ScoreBadge = ({ score }) => {
+  if (score === null || score === undefined) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-black bg-slate-500/10 text-slate-500 border-slate-500/20">
+        <Star className="h-3 w-3" />
+        Pending
+      </span>
+    );
+  }
+
   const color =
     score >= 75 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' :
     score >= 50 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' :
@@ -51,6 +60,7 @@ const ReportModal = ({ candidate, onClose }) => {
         <div className="flex items-center gap-4 mb-6 p-4 rounded-xl bg-slate-50 dark:bg-[#0E1325]/60 border border-slate-200 dark:border-[#1F2647]">
           <div className="text-center">
             <div className={`text-4xl font-black ${
+              candidate.aiScore === null || candidate.aiScore === undefined ? 'text-slate-500' :
               candidate.aiScore >= 75 ? 'text-emerald-500' :
               candidate.aiScore >= 50 ? 'text-amber-500' : 'text-red-500'
             }`}>

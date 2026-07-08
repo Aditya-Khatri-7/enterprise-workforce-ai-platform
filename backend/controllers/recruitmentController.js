@@ -23,29 +23,53 @@ const extractResumeText = async (buffer, mimetype) => {
   return '';
 };
 
-const runGeminiScreening = async (job, candidateData, resumeText) => {
+const buildPdfResumeFile = (buffer, fileName) => ({
+  mimeType: 'application/pdf',
+  base64: buffer.toString('base64'),
+  fileName
+});
+
+const fetchResumeFileForGemini = async (candidate) => {
+  const fileName = candidate.resumeFileName || `${candidate.candidateName}_resume.pdf`;
+  if (!fileName.toLowerCase().endsWith('.pdf')) return null;
+
+  const resumeUrl = candidate.resumePublicId
+    ? getResumeDownloadUrl(candidate.resumePublicId)
+    : candidate.resumeUrl;
+  if (!resumeUrl) return null;
+
+  try {
+    const response = await fetch(resumeUrl);
+    if (!response.ok) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    return buildPdfResumeFile(Buffer.from(arrayBuffer), fileName);
+  } catch (err) {
+    console.error('Failed to fetch resume PDF for Gemini:', err.message);
+    return null;
+  }
+};
+
+const runGeminiScreening = async (job, candidateData, resumeText, resumeFile) => {
   try {
     return await screenResumeWithGemini({
       jobTitle: job.title,
       jobDescription: job.description,
       resumeText,
+      resumeFile,
       ...candidateData
     });
   } catch (err) {
-    console.error('Gemini screening fallback:', err.message);
-    const parsedSkills = Array.isArray(candidateData.skills)
-      ? candidateData.skills
-      : (candidateData.skills || '').split(',').map(s => s.trim()).filter(Boolean);
+    console.error('Gemini resume screening failed:', err.message);
     return {
-      aiScore: Math.min(100, Math.max(20, 40 + parsedSkills.length * 5 + (candidateData.experience || 0) * 3)),
-      skillsMatch: parsedSkills.slice(0, 3),
-      skillsMissing: ['Could not complete full AI analysis'],
-      strengths: ['Application submitted successfully'],
+      aiScore: null,
+      skillsMatch: [],
+      skillsMissing: [],
+      strengths: [],
       weaknesses: ['AI screening unavailable — manual review recommended'],
       experienceAnalysis: `${candidateData.experience || 0} years of experience listed.`,
-      overallAssessment: 'Automated Gemini screening was unavailable. Please review manually.',
+      overallAssessment: 'Gemini resume screening was unavailable. Please review the resume manually or run screening again.',
       recommendation: 'Hold for Review',
-      summary: `${candidateData.candidateName} applied for ${job.title}. Manual screening required.`
+      summary: `${candidateData.candidateName} applied for ${job.title}. No Gemini score was generated.`
     };
   }
 };
@@ -159,10 +183,15 @@ const applyToJob = async (req, res) => {
       ? skills
       : (skills || '').split(',').map(s => s.trim()).filter(Boolean);
 
+    const resumeFileForGemini = req.file.mimetype === 'application/pdf'
+      ? buildPdfResumeFile(req.file.buffer, req.file.originalname)
+      : null;
+
     const screening = await runGeminiScreening(
       job,
       { candidateName, email, experience: Number(experience), skills: parsedSkills, phone, coverLetter },
-      resumeText
+      resumeText,
+      resumeFileForGemini
     );
 
     const candidate = new Candidate({
@@ -177,6 +206,7 @@ const applyToJob = async (req, res) => {
       resumeUrl: cloudinaryResult.secure_url,
       resumePublicId: cloudinaryResult.public_id,
       resumeFileName: req.file.originalname,
+      resumeText,
       status: 'Resume Screening',
       aiScore: screening.aiScore,
       aiReport: {
@@ -267,7 +297,8 @@ const rescreenCandidate = async (req, res) => {
         phone: candidate.phone,
         coverLetter: candidate.coverLetter
       },
-      ''
+      candidate.resumeText || '',
+      await fetchResumeFileForGemini(candidate)
     );
 
     candidate.aiScore = screening.aiScore;

@@ -36,9 +36,12 @@ const candidateSchema = new mongoose.Schema({
   resumeFileName: {
     type: String
   },
+  resumeText: {
+    type: String
+  },
   aiScore: {
     type: Number,
-    default: 0
+    default: null
   },
   aiReport: {
     skillsMatch: [String],

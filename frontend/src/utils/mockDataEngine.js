@@ -165,7 +165,7 @@ User Question: ${prompt}`;
       if (!API_KEY) {
         return { answer: "Google Gemini API key is missing. Please configure VITE_GEMINI_API_KEY in your frontend .env file." };
       }
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -200,6 +200,13 @@ const LandingPage = () => {
     return () => clearInterval(interval);
   }, [isTestimonialHovered]);
 
+  const handleApplyJobClick = () => {
+    document.getElementById('careers')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white overflow-x-hidden relative">
       {/* Premium Aurora floating light blobs */}
@@ -308,6 +315,15 @@ const LandingPage = () => {
                   transition={{ duration: 0.6 }}
                   className="flex items-center space-x-4"
                 >
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleApplyJobClick}
+                    className="px-5 py-2.5 border border-cyan-400/25 bg-cyan-400/10 text-cyan-200 hover:text-white hover:border-cyan-300/40 rounded-xl text-sm font-bold transition-all duration-300 flex items-center space-x-2"
+                  >
+                    <Briefcase className="h-4 w-4" />
+                    <span>Apply for Job</span>
+                  </motion.button>
                   <motion.button 
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}

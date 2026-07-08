@@ -70,9 +70,10 @@ User Question: ${prompt}`;
     if (!API_KEY) {
       return res.status(500).json({ error: 'Google Gemini API key is missing on the server. Please set GEMINI_API_KEY in your backend .env file.' });
     }
+    const geminiModel = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').replace(/^models\//, '');
     
     try {
-      const response = await performFetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+      const response = await performFetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

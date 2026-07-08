@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'react-toastify';
-import { ArrowLeft, Upload, Briefcase, User, Mail, Phone, FileText, Send, Loader2 } from 'lucide-react';
+import { ArrowLeft, Upload, Briefcase, User, Send, Loader2 } from 'lucide-react';
 import publicApi from '../services/publicApi';
 
 const JobApplicationPage = () => {
@@ -17,7 +17,6 @@ const JobApplicationPage = () => {
     email: '',
     phone: '',
     experience: '',
-    skills: '',
     coverLetter: ''
   });
 
@@ -68,7 +67,6 @@ const JobApplicationPage = () => {
     formData.append('email', form.email);
     formData.append('phone', form.phone);
     formData.append('experience', form.experience);
-    formData.append('skills', form.skills);
     formData.append('coverLetter', form.coverLetter);
     formData.append('jobPostingId', jobId);
     formData.append('resume', resumeFile);
@@ -185,19 +183,6 @@ const JobApplicationPage = () => {
                   className="w-full px-4 py-2.5 bg-slate-800/50 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-indigo-500"
                 />
               </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase">Skills (comma-separated) *</label>
-              <input
-                type="text"
-                name="skills"
-                required
-                value={form.skills}
-                onChange={handleChange}
-                placeholder="React, Node.js, MongoDB, JavaScript"
-                className="w-full px-4 py-2.5 bg-slate-800/50 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-indigo-500"
-              />
             </div>
 
             <div className="space-y-1">
