@@ -50,11 +50,18 @@ const DeactivatedPage = () => {
   const onSubmit = async (formData) => {
     try {
       setSubmitting(true);
-      await api.post('/users/me/reactivation-request', { reason: formData.reason });
-      toast.success('Request sent. Your manager has been notified.');
+      await api.post('/users/me/reactivation-request', { 
+        reason: formData.reason,
+        requestType: formData.requestType
+      });
+      toast.success(
+        formData.requestType === 'Deletion'
+          ? 'Account deletion request submitted successfully.'
+          : 'Reactivation request sent. Your manager has been notified.'
+      );
       checkStatus();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to send reactivation request');
+      toast.error(err.response?.data?.error || 'Failed to send request');
     } finally {
       setSubmitting(false);
     }
@@ -111,24 +118,37 @@ const DeactivatedPage = () => {
         {reqStatus === 'Pending' && (
           <div className="bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded-2xl p-4 text-xs font-bold text-center flex items-center justify-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin text-cyan-400" />
-            <span>Reactivation Request is Pending Review. Your manager has been notified.</span>
+            <span>
+              {suspendInfo?.reactivationRequest?.requestType === 'Deletion' ? 'Account Deletion' : 'Reactivation'} Request is Pending Review. Your superior has been notified.
+            </span>
           </div>
         )}
 
         {reqStatus === 'Rejected' && (
           <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-2xl p-4 text-xs font-bold text-center">
-            Your reactivation request was rejected. You can submit another request below.
+            Your {suspendInfo?.reactivationRequest?.requestType === 'Deletion' ? 'account deletion' : 'reactivation'} request was rejected. You can submit another request below.
           </div>
         )}
 
         {(!reqStatus || reqStatus === 'Rejected') && (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Request Type</label>
+              <select
+                {...register('requestType', { required: true })}
+                className="w-full text-xs p-3 bg-black/40 border border-slate-800 rounded-2xl focus:outline-none focus:ring-1 focus:ring-red-500 text-slate-200"
+              >
+                <option value="Reactivation">Appeal Suspension (Reactivation)</option>
+                <option value="Deletion">Request Permanent Account Deletion</option>
+              </select>
+            </div>
+
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Request Reactivation Reason</label>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Reason / Comments</label>
               <textarea
-                {...register('reason', { required: 'Please provide a reason for reactivation' })}
+                {...register('reason', { required: 'Please provide details or a reason for your request' })}
                 rows={3}
-                placeholder="Explain why your account should be reactivated..."
+                placeholder="Explain the background for your request..."
                 className="w-full text-xs p-4 bg-black/40 border border-slate-800 rounded-2xl focus:outline-none focus:ring-1 focus:ring-red-500 text-slate-200 placeholder:text-slate-600"
               ></textarea>
               {errors.reason && <p className="text-red-500 text-[10px] mt-1 font-semibold">{errors.reason.message}</p>}
@@ -140,7 +160,7 @@ const DeactivatedPage = () => {
               className="w-full py-3 bg-red-600 hover:bg-red-700 font-bold uppercase tracking-wider text-xs rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer text-white border-0"
             >
               <Send className="h-3.5 w-3.5" />
-              <span>{submitting ? 'Submitting Request...' : 'Request Reactivation'}</span>
+              <span>{submitting ? 'Submitting Request...' : 'Submit Request'}</span>
             </button>
           </form>
         )}

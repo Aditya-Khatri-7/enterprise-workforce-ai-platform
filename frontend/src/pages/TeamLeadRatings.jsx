@@ -6,7 +6,7 @@ import { AuthContext } from '../context/AuthContext';
 import { Star, Award, Edit3 } from 'lucide-react';
 
 const TeamLeadRatings = () => {
-  const { isDemoMode } = useContext(DemoContext);
+  const { isDemoMode, demoRole } = useContext(DemoContext);
   const { user } = useContext(AuthContext);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -141,7 +141,9 @@ const TeamLeadRatings = () => {
 
         <div className="space-y-4">
           <div className="glass-card border border-indigo-500/10 rounded-2xl p-6 bg-gradient-to-br from-purple-500/5 to-indigo-500/5">
-            <h3 className="text-sm font-black uppercase tracking-wider text-purple-405 dark:text-purple-400">Rate Employee</h3>
+            <h3 className="text-sm font-black uppercase tracking-wider text-purple-405 dark:text-purple-400">
+              {selectedEmp ? `Rate: ${selectedEmp.firstName} ${selectedEmp.lastName}` : 'Rate Employee'}
+            </h3>
             {selectedEmp ? (
               <form onSubmit={handleRateSubmit} className="space-y-4 mt-4">
                 <div className="space-y-2">

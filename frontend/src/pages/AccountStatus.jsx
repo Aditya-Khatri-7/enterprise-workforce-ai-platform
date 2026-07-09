@@ -102,19 +102,19 @@ const AccountStatus = () => {
             <p className="text-xs text-gray-500 dark:text-slate-350 text-center leading-normal font-medium">
               Click the request button below to submit a reactivation query to your Organization Administrator.
             </p>
-            <Btn
+            <button
               onClick={handleRequestActivation}
               disabled={submitting}
-              className="w-full btn-premium-gradient py-3 text-white rounded-xl font-bold"
+              className="w-full btn-premium-gradient py-3 text-white rounded-xl font-bold border-0 cursor-pointer transition-all disabled:opacity-50"
             >
               {submitting ? 'Submitting Activation Request...' : 'Request Account Activation'}
-            </Btn>
+            </button>
           </div>
         )}
 
         <div className="border-t border-indigo-500/10 dark:border-indigo-500/20 pt-4 flex gap-3">
-          <Btn variant="secondary" className="flex-1 rounded-xl" onClick={fetchStatus}>Refresh Check</Btn>
-          <Btn variant="secondary" className="flex-1 rounded-xl text-red-500 hover:!bg-red-500/10 border border-red-500/10" onClick={logout}>Sign Out</Btn>
+          <button className="flex-1 rounded-xl py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-850 dark:text-white border-0 font-bold cursor-pointer text-xs transition-all" onClick={fetchStatus}>Refresh Check</button>
+          <button className="flex-1 rounded-xl py-2.5 bg-transparent border border-red-500/20 hover:bg-red-500/10 text-red-500 font-bold cursor-pointer text-xs transition-all" onClick={logout}>Sign Out</button>
         </div>
       </motion.div>
     </div>

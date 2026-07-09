@@ -50,7 +50,7 @@ const EmployeeProjects = () => {
         }
       ]);
       setLoading(false);
-    } else {
+    } else if (user) {
       loadProjects();
     }
   }, [isDemoMode, user]);

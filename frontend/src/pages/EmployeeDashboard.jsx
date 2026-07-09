@@ -95,6 +95,206 @@ const EmployeeDashboard = () => {
   const [ticketForm, setTicketForm] = useState({ category: 'General', subject: '', description: '' });
   const [submitting, setSubmitting] = useState(false);
 
+  const handleDownloadLatestPayslip = async () => {
+    try {
+      const { data } = await api.get('/enterprise/payrolls');
+      if (data && data.length > 0) {
+        const latest = data[0];
+        const empName = `${emp.firstName || user?.username || ''} ${emp.lastName || ''}`.trim();
+        const empId = emp.employeeId || 'N/A';
+        const designation = emp.designation || 'Staff Member';
+        const role = user?.role?.name || user?.role || '';
+        const department = emp.department || 'N/A';
+        const orgName = user?.organization?.name || 'EWAP Corporate';
+        const portalName = 'EWAP Portal';
+        const tagLine = 'Great Place to Work';
+        
+        const baseSalary = latest.baseSalary || 0;
+        const allowances = latest.allowances || 0;
+        const deductions = latest.deductions || 0;
+        const netSalary = latest.netSalary || 0;
+        const period = `${latest.month} ${latest.year}`;
+        
+        const printHTML = `
+          <html>
+            <head>
+              <title>Payslip - ${period}</title>
+              <style>
+                body {
+                  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                  color: #333;
+                  padding: 40px;
+                  line-height: 1.6;
+                }
+                .header-table {
+                  width: 100%;
+                  border-bottom: 2px solid #4f46e5;
+                  padding-bottom: 20px;
+                  margin-bottom: 30px;
+                }
+                .portal-name {
+                  font-size: 14px;
+                  font-weight: bold;
+                  color: #4f46e5;
+                  text-transform: uppercase;
+                }
+                .org-name {
+                  font-size: 24px;
+                  font-weight: 900;
+                  text-align: center;
+                  color: #1e1b4b;
+                }
+                .tagline {
+                  font-size: 12px;
+                  font-weight: bold;
+                  color: #10b981;
+                  text-align: right;
+                  text-transform: uppercase;
+                }
+                .title {
+                  text-align: center;
+                  font-size: 18px;
+                  font-weight: bold;
+                  margin-bottom: 30px;
+                  text-transform: uppercase;
+                  letter-spacing: 1px;
+                }
+                .details-table {
+                  width: 100%;
+                  margin-bottom: 30px;
+                  border-collapse: collapse;
+                }
+                .details-table td {
+                  padding: 8px 12px;
+                  font-size: 13px;
+                }
+                .details-label {
+                  font-weight: bold;
+                  color: #666;
+                  width: 25%;
+                }
+                .details-value {
+                  color: #111;
+                  width: 25%;
+                }
+                .financials-table {
+                  width: 100%;
+                  border-collapse: collapse;
+                  margin-bottom: 30px;
+                }
+                .financials-table th, .financials-table td {
+                  border: 1px solid #e2e8f0;
+                  padding: 12px;
+                  text-align: left;
+                  font-size: 13px;
+                }
+                .financials-table th {
+                  background-color: #f8fafc;
+                  font-weight: bold;
+                }
+                .total-row {
+                  font-weight: bold;
+                  background-color: #f1f5f9;
+                }
+                .footer {
+                  margin-top: 50px;
+                  text-align: center;
+                  font-size: 11px;
+                  color: #94a3b8;
+                  border-top: 1px solid #e2e8f0;
+                  padding-top: 20px;
+                }
+              </style>
+            </head>
+            <body>
+              <table class="header-table">
+                <tr>
+                  <td class="portal-name" style="width: 30%;">${portalName}</td>
+                  <td class="org-name" style="width: 40%;">${orgName}</td>
+                  <td class="tagline" style="width: 30%;">${tagLine}</td>
+                </tr>
+              </table>
+              
+              <div class="title">Payslip Advice - ${period}</div>
+              
+              <table class="details-table">
+                <tr>
+                  <td class="details-label">Employee Name:</td>
+                  <td class="details-value">${empName}</td>
+                  <td class="details-label">Employee ID:</td>
+                  <td class="details-value">${empId}</td>
+                </tr>
+                <tr>
+                  <td class="details-label">Designation:</td>
+                  <td class="details-value">${designation}</td>
+                  <td class="details-label">Department:</td>
+                  <td class="details-value">${department}</td>
+                </tr>
+                <tr>
+                  <td class="details-label">Security Role:</td>
+                  <td class="details-value">${role}</td>
+                  <td class="details-label">Disbursement:</td>
+                  <td class="details-value">${latest.status || 'Paid'}</td>
+                </tr>
+              </table>
+              
+              <table class="financials-table">
+                <thead>
+                  <tr>
+                    <th>Description</th>
+                    <th style="text-align: right;">Allowances / Earnings (₹)</th>
+                    <th style="text-align: right;">Deductions (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Basic Base Salary</td>
+                    <td style="text-align: right;">₹${baseSalary.toLocaleString()}</td>
+                    <td style="text-align: right;">-</td>
+                  </tr>
+                  <tr>
+                    <td>HRA & Perks Allowances</td>
+                    <td style="text-align: right;">₹${allowances.toLocaleString()}</td>
+                    <td style="text-align: right;">-</td>
+                  </tr>
+                  <tr>
+                    <td>Taxes & Compliance Deductions</td>
+                    <td style="text-align: right;">-</td>
+                    <td style="text-align: right;">₹${deductions.toLocaleString()}</td>
+                  </tr>
+                  <tr class="total-row">
+                    <td>Net Take-home Salary</td>
+                    <td colspan="2" style="text-align: right; color: #10b981; font-size: 15px;">₹${netSalary.toLocaleString()}</td>
+                  </tr>
+                </tbody>
+              </table>
+              
+              <div class="footer">
+                This is a computer-generated salary slip and requires no physical signature.<br/>
+                Generated via EWAP SaaS System at ${new Date().toLocaleString()}. All rights reserved.
+              </div>
+              
+              <script>
+                window.onload = function() {
+                  window.print();
+                  setTimeout(function() { window.close(); }, 500);
+                }
+              </script>
+            </body>
+          </html>
+        `;
+        
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        printWindow.document.write(printHTML);
+        printWindow.document.close();
+      } else {
+        toast.info('No payroll records found for this account.');
+      }
+    } catch (err) {
+      toast.error('Failed to generate payslip document.');
+    }
+  };
+
   // Local state for Riya Sharma's task status
   const [riyaTaskStatus, setRiyaTaskStatus] = useState('In Progress');
 
@@ -513,7 +713,7 @@ const EmployeeDashboard = () => {
                 <span>Apply for Personal Leave</span>
                 <ArrowRight className="h-4 w-4 text-emerald-605 dark:text-emerald-400" />
               </button>
-              <button onClick={() => toast.success('Downloading latest payroll payslip PDF...')} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-[#1E2544]/5 dark:bg-[#1E2544]/60 border border-slate-200 dark:border-[#1F2647] hover:border-emerald-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between">
+              <button onClick={handleDownloadLatestPayslip} className="w-full text-left py-2.5 px-4 bg-slate-50 hover:bg-[#1E2544]/5 dark:bg-[#1E2544]/60 border border-slate-200 dark:border-[#1F2647] hover:border-emerald-500/40 rounded-xl text-xs font-bold transition-all text-slate-800 dark:text-white flex items-center justify-between">
                 <span>Download Salary Payslip</span>
                 <ArrowRight className="h-4 w-4 text-emerald-605 dark:text-emerald-400" />
               </button>

@@ -370,11 +370,10 @@ const deactivateUser = async (req, res) => {
     res.status(500).json({ error: 'Server error deactivating user' });
   }
 };
-
 const requestReactivation = async (req, res) => {
   try {
     const id = req.params.id === 'me' ? req.user._id : req.params.id;
-    const { reason } = req.body;
+    const { reason, requestType } = req.body;
 
     if (req.user._id.toString() !== id.toString()) {
       return res.status(403).json({ error: 'Forbidden. You can only request reactivation for yourself.' });
@@ -385,9 +384,12 @@ const requestReactivation = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const reqType = requestType || 'Reactivation';
+
     user.reactivationRequest = {
+      requestType: reqType,
       requestedAt: new Date(),
-      reason: reason || 'Requested reactivation',
+      reason: reason || (reqType === 'Deletion' ? 'Requested deletion' : 'Requested reactivation'),
       status: 'Pending'
     };
     user.status = 'Deactivation_Requested'; // updates user status
@@ -395,7 +397,7 @@ const requestReactivation = async (req, res) => {
 
     await writeAuditLog({
       userId: user._id,
-      action: 'REACTIVATION_REQUESTED',
+      action: reqType === 'Deletion' ? 'DELETION_REQUESTED' : 'REACTIVATION_REQUESTED',
       details: { reason },
       req
     });
@@ -411,8 +413,8 @@ const requestReactivation = async (req, res) => {
         for (const sa of superAdmins) {
           await createNotification({
             recipient: sa._id,
-            title: 'Reactivation Request',
-            message: `Org Admin ${user.username} has requested reactivation.`,
+            title: reqType === 'Deletion' ? 'Account Deletion Request' : 'Reactivation Request',
+            message: `Org Admin ${user.username} has requested ${reqType.toLowerCase()}.`,
             organization: null
           });
         }
@@ -431,21 +433,25 @@ const requestReactivation = async (req, res) => {
         for (const sup of superiors) {
           await createNotification({
             recipient: sup._id,
-            title: 'Reactivation Request',
-            message: `User ${user.username} (${roleName}) has requested account reactivation.`,
+            title: reqType === 'Deletion' ? 'Account Deletion Request' : 'Reactivation Request',
+            message: `User ${user.username} (${roleName}) has requested account ${reqType.toLowerCase()}.`,
             organization: user.organization
           });
         }
       }
     }
 
-    res.json({ message: 'Reactivation request sent. Your manager has been notified.', user });
+    res.json({
+      message: reqType === 'Deletion' 
+        ? 'Deletion request sent. Reviewing authorities have been notified.' 
+        : 'Reactivation request sent. Your manager has been notified.',
+      user
+    });
   } catch (error) {
     console.error('Request Reactivation Error:', error);
-    res.status(500).json({ error: 'Server error requesting reactivation' });
+    res.status(500).json({ error: 'Server error requesting reactivation/deletion appeal' });
   }
 };
-
 const reviewReactivation = async (req, res) => {
   try {
     const id = req.params.id === 'me' ? req.user._id : req.params.id;
@@ -456,32 +462,93 @@ const reviewReactivation = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (action === 'Approve') {
-      targetUser.status = 'Active';
-      targetUser.isActive = true;
-      if (targetUser.reactivationRequest) {
-        targetUser.reactivationRequest.status = 'Approved';
+    const reviewerRole = req.user.role.name;
+    const targetRole = targetUser.role?.name;
+
+    // Enforce organizational boundary
+    if (reviewerRole !== 'Super Admin') {
+      if (targetUser.organization?.toString() !== req.user.organization?.toString()) {
+        return res.status(403).json({ error: 'Forbidden. User belongs to another organization.' });
       }
-      targetUser.suspendedBy = undefined;
-      targetUser.suspendReason = undefined;
-      await targetUser.save();
+    }
 
-      await writeAuditLog({
-        userId: req.user._id,
-        action: 'REACTIVATION_APPROVED',
-        targetUserId: targetUser._id,
-        details: 'Approved reactivation request',
-        req
-      });
+    // Enforce Hierarchy for Reactivation/Deletion Appeal Review:
+    // - Team Lead/Employee requests: HR, Manager, Admin, IT Admin can review
+    // - Manager, HR, Finance, Auditor requests: Admin (Org Admin) can review
+    // - Admin (Org Admin) requests: Super Admin can review
+    let allowed = false;
 
-      await createNotification({
-        recipient: targetUser._id,
-        title: 'Account Reactivated',
-        message: 'Your reactivation request has been approved. You can now log in.',
-        organization: targetUser.organization
-      });
+    if (reviewerRole === 'Super Admin') {
+      if (targetRole === 'Organization Admin') allowed = true;
+    } else if (reviewerRole === 'Organization Admin') {
+      const allowedTargetRoles = ['Manager', 'Department Manager', 'HR Manager', 'Finance', 'Finance Executive', 'Auditor', 'Employee', 'Team Lead'];
+      if (allowedTargetRoles.includes(targetRole)) allowed = true;
+    } else if (['HR Manager', 'Manager', 'Department Manager', 'IT Administrator'].includes(reviewerRole)) {
+      if (targetRole === 'Employee' || targetRole === 'Team Lead') allowed = true;
+    }
 
-      res.json({ message: 'Account reactivated successfully', user: targetUser });
+    if (!allowed) {
+      return res.status(403).json({ error: 'Forbidden. You do not have permission to review this request according to hierarchical boundaries.' });
+    }
+
+    const isDeletion = targetUser.reactivationRequest?.requestType === 'Deletion';
+
+    if (action === 'Approve') {
+      if (isDeletion) {
+        targetUser.status = 'Deleted';
+        targetUser.isActive = false;
+        if (targetUser.reactivationRequest) {
+          targetUser.reactivationRequest.status = 'Approved';
+        }
+        await targetUser.save();
+
+        if (targetUser.employeeRef) {
+          await Employee.findByIdAndUpdate(targetUser.employeeRef, { status: 'Terminated' });
+        }
+
+        await writeAuditLog({
+          userId: req.user._id,
+          action: 'USER_DELETED',
+          targetUserId: targetUser._id,
+          details: 'Approved account deletion request',
+          req
+        });
+
+        await createNotification({
+          recipient: targetUser._id,
+          title: 'Account Deleted',
+          message: 'Your account deletion request has been approved and processed.',
+          organization: targetUser.organization
+        });
+
+        res.json({ message: 'Account deleted successfully', user: targetUser });
+      } else {
+        targetUser.status = 'Active';
+        targetUser.isActive = true;
+        if (targetUser.reactivationRequest) {
+          targetUser.reactivationRequest.status = 'Approved';
+        }
+        targetUser.suspendedBy = undefined;
+        targetUser.suspendReason = undefined;
+        await targetUser.save();
+
+        await writeAuditLog({
+          userId: req.user._id,
+          action: 'REACTIVATION_APPROVED',
+          targetUserId: targetUser._id,
+          details: 'Approved reactivation request',
+          req
+        });
+
+        await createNotification({
+          recipient: targetUser._id,
+          title: 'Account Reactivated',
+          message: 'Your reactivation request has been approved. You can now log in.',
+          organization: targetUser.organization
+        });
+
+        res.json({ message: 'Account reactivated successfully', user: targetUser });
+      }
     } else {
       targetUser.status = 'Suspended';
       targetUser.isActive = false;
@@ -492,20 +559,22 @@ const reviewReactivation = async (req, res) => {
 
       await writeAuditLog({
         userId: req.user._id,
-        action: 'REACTIVATION_REJECTED',
+        action: isDeletion ? 'DELETION_REJECTED' : 'REACTIVATION_REJECTED',
         targetUserId: targetUser._id,
-        details: 'Rejected reactivation request',
+        details: isDeletion ? 'Rejected deletion request' : 'Rejected reactivation request',
         req
       });
 
       await createNotification({
         recipient: targetUser._id,
-        title: 'Reactivation Rejected',
-        message: 'Your reactivation request has been rejected. Please contact support.',
+        title: isDeletion ? 'Deletion Request Rejected' : 'Reactivation Rejected',
+        message: isDeletion 
+          ? 'Your account deletion request has been rejected. Your account remains suspended.' 
+          : 'Your reactivation request has been rejected. Please contact support.',
         organization: targetUser.organization
       });
 
-      res.json({ message: 'Reactivation request rejected', user: targetUser });
+      res.json({ message: isDeletion ? 'Deletion request rejected' : 'Reactivation request rejected', user: targetUser });
     }
   } catch (error) {
     console.error('Review Reactivation Error:', error);

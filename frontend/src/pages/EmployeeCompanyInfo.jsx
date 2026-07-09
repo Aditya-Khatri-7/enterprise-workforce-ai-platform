@@ -15,9 +15,13 @@ const EmployeeCompanyInfo = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const loadProfile = async () => {
+    const empId = user?.employeeRef?._id || user?.employeeRef;
+    if (!empId) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
-      const empId = user?.employeeRef?._id || user?.employeeRef;
       const res = await api.get(`/employees/${empId}`);
       setEmployee(res.data);
       setResumeText(res.data?.resumeText || '');
@@ -47,7 +51,7 @@ const EmployeeCompanyInfo = () => {
       setResumeText(mockEmp.resumeText);
       setFileDetails({ name: mockEmp.resumeFileName, base64: '' });
       setLoading(false);
-    } else {
+    } else if (user) {
       loadProfile();
     }
   }, [isDemoMode, user]);

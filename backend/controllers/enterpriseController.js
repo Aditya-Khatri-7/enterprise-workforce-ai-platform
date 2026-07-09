@@ -103,7 +103,22 @@ const getPayrolls = async (req, res) => {
   try {
     const orgId = req.user.organization;
     if (!orgId) return res.json([]);
-    const payrolls = await Payroll.find({ organization: orgId })
+    
+    // Check if the user is a financial / admin role
+    const userRole = req.user.role?.name || req.user.role || '';
+    const isPrivileged = ['Super Admin', 'Organization Admin', 'Finance', 'Auditor'].includes(userRole);
+    
+    let query = { organization: orgId };
+    
+    // If not privileged, restrict to the user's own employee record!
+    if (!isPrivileged) {
+      if (!req.user.employeeRef) {
+        return res.json([]); // No employee record, no payroll
+      }
+      query.employee = req.user.employeeRef;
+    }
+    
+    const payrolls = await Payroll.find(query)
       .populate('employee', 'firstName lastName employeeId email department')
       .sort({ year: -1, month: -1 });
     res.json(payrolls);
