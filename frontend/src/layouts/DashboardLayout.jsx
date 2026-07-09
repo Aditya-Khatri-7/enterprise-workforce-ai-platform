@@ -76,9 +76,10 @@ const DashboardLayout = () => {
   useEffect(() => {
     fetchNotifs();
 
-    // Establish Socket.IO Connection
     const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-    const socket = io(`http://${hostname}:3000`, {
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || 
+      (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? '/' : `http://${hostname}:3000`);
+    const socket = io(socketUrl, {
       withCredentials: true
     });
 

@@ -13,6 +13,7 @@ const transporter = nodemailer.createTransport({
  * Sends a welcome email to a newly created employee with their login credentials.
  */
 const sendWelcomeEmail = async ({ to, firstName, email, temporaryPassword }) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const mailOptions = {
     from: `"Workforce Portal" <${process.env.EMAIL_USER}>`,
     to,
@@ -23,7 +24,7 @@ const sendWelcomeEmail = async ({ to, firstName, email, temporaryPassword }) => 
         <p>Hi <strong>${firstName}</strong>,</p>
         <p>Your employee account has been successfully created. Below are your login credentials:</p>
         <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Login URL:</strong> <a href="http://localhost:5173/login">http://localhost:5173/login</a></p>
+          <p style="margin: 5px 0;"><strong>Login URL:</strong> <a href="${frontendUrl}/login">${frontendUrl}/login</a></p>
           <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
           <p style="margin: 5px 0;"><strong>Temporary Password:</strong> <span style="font-size: 1.1em; letter-spacing: 2px; color: #1f2937;">${temporaryPassword}</span></p>
         </div>
