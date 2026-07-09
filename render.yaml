@@ -26,10 +26,6 @@ services:
         sync: false
       - key: REFRESH_TOKEN
         sync: false
-      - key: RECAPTCHA_SITE_KEY
-        sync: false
-      - key: RECAPTCHA_SECRET_KEY
-        sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY

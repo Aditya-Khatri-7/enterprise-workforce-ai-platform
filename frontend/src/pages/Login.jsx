@@ -1,14 +1,11 @@
-import React, { useContext, useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import ReCAPTCHA from 'react-google-recaptcha';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, Cpu, ShieldCheck, Activity } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import { DemoContext } from '../context/DemoContext';
-
-const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
 const Login = () => {
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm();
@@ -16,9 +13,6 @@ const Login = () => {
   const { clearDemo } = useContext(DemoContext);
   const navigate = useNavigate();
   const location = useLocation();
-  const recaptchaRef = useRef(null);
-  const [recaptchaToken, setRecaptchaToken] = useState(null);
-  const [recaptchaError, setRecaptchaError] = useState('');
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   // Input Focus States
@@ -43,30 +37,14 @@ const Login = () => {
     return () => window.removeEventListener('mousemove', handleMove);
   }, []);
 
-  const handleRecaptchaChange = (token) => {
-    setRecaptchaToken(token);
-    setRecaptchaError('');
-  };
-
-  const handleRecaptchaExpired = () => {
-    setRecaptchaToken(null);
-  };
-
   const onSubmit = async (data) => {
-    if (!recaptchaToken) {
-      setRecaptchaError('Please complete the reCAPTCHA verification.');
-      return;
-    }
-
     try {
       if (clearDemo) clearDemo();
-      await login({ ...data, recaptchaToken });
+      await login(data);
       toast.success('Logged in successfully!');
       navigate(from, { replace: true });
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to login');
-      recaptchaRef.current?.reset();
-      setRecaptchaToken(null);
     }
   };
 
@@ -224,25 +202,6 @@ const Login = () => {
                 </div>
               </div>
 
-              {/* reCAPTCHA dark frame wrapper */}
-              <div className="flex flex-col items-center py-2 bg-white/20 dark:bg-[#0B1023]/40 border border-indigo-500/10 rounded-xl p-4 shadow-inner">
-                <ReCAPTCHA
-                  ref={recaptchaRef}
-                  sitekey={RECAPTCHA_SITE_KEY}
-                  onChange={handleRecaptchaChange}
-                  onExpired={handleRecaptchaExpired}
-                  theme="dark"
-                />
-                {recaptchaError && (
-                  <motion.p 
-                    initial={{ opacity: 0 }} 
-                    animate={{ opacity: 1 }} 
-                    className="mt-2.5 text-[11px] text-red-400 font-mono text-center pl-1"
-                  >
-                    {recaptchaError}
-                  </motion.p>
-                )}
-              </div>
 
               {/* Action Button Sign In */}
               <div>
