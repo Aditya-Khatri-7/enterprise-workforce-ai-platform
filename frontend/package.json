@@ -12,7 +12,6 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
-    "@rolldown/binding-win32-x64-msvc": "^1.1.4",
     "axios": "^1.18.1",
     "enterprise-workforce-ai-platform": "file:..",
     "framer-motion": "^12.42.2",
