@@ -88,6 +88,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Serve frontend static assets FIRST (must be before all routes)
+const path = require('path');
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files (JS, CSS, images) from the compiled frontend
+  app.use(express.static(path.join(__dirname, '../frontend/dist'), {
+    index: false // Don't auto-serve index.html - let the catch-all below handle it
+  }));
+}
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
@@ -116,10 +125,10 @@ app.use('/api/proposals', require('./routes/proposal'));
 app.use('/api/requests', require('./routes/request'));
 app.use('/api/grievances', require('./routes/grievance'));
 
-const path = require('path');
+// SPA Fallback: serve index.html for all non-API routes (React Router support)
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
-  app.get(/^\/(?!api).*/, (req, res) => {
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
     res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
   });
 }
