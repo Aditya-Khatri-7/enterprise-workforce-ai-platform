@@ -47,16 +47,32 @@ const allowedOrigins = [
   'http://127.0.0.1:5175',
   ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [])
 ];
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+
+const corsOptionsDelegate = (req, callback) => {
+  const origin = req.header('Origin');
+  const host = req.header('Host');
+  
+  let isAllowed = false;
+  if (!origin) {
+    isAllowed = true;
+  } else if (allowedOrigins.includes(origin)) {
+    isAllowed = true;
+  } else {
+    const originHost = origin.replace(/^https?:\/\//, '').split(':')[0];
+    const requestHost = host ? host.split(':')[0] : '';
+    if (originHost === requestHost) {
+      isAllowed = true;
     }
-  },
-  credentials: true
-}));
+  }
+  
+  if (isAllowed) {
+    callback(null, { origin: true, credentials: true });
+  } else {
+    callback(null, { origin: false });
+  }
+};
+
+app.use(cors(corsOptionsDelegate));
 
 
 const limiter = rateLimit({
