@@ -34,7 +34,7 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: RESEND_API_KEY
+      - key: BREVO_API_KEY
         sync: false
-      - key: RESEND_FROM
+      - key: BREVO_SENDER_EMAIL
         sync: false

@@ -272,7 +272,7 @@ const forgotPassword = async (req, res) => {
     res.json({ message: 'OTP sent to email successfully' });
   } catch (error) {
     console.error('Error in forgotPassword:', error);
-    res.status(500).json({ error: 'Failed to process request' });
+    res.status(500).json({ error: error.message || 'Failed to process request' });
   }
 };
 

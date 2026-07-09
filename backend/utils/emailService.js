@@ -15,26 +15,27 @@ const transporter = nodemailer.createTransport({
  * and falling back to Nodemailer SMTP (local development).
  */
 const sendMailWrapper = async (options) => {
-  if (process.env.RESEND_API_KEY) {
-    console.log(`Sending email to ${options.to} via Resend HTTP API...`);
-    const fromAddress = (process.env.RESEND_FROM || 'onboarding@resend.dev').trim();
-    const fromName = 'Workforce Portal';
+  if (process.env.BREVO_API_KEY) {
+    console.log(`Sending email to ${options.to} via Brevo HTTP API...`);
+    const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || 'skdubey568@gmail.com';
+    const senderName = 'Workforce Portal';
 
     return new Promise((resolve, reject) => {
       const postData = JSON.stringify({
-        from: `${fromName} <${fromAddress}>`,
-        to: [options.to],
+        sender: { name: senderName, email: senderEmail.trim() },
+        to: [{ email: options.to }],
         subject: options.subject,
-        html: options.html,
+        htmlContent: options.html,
       });
 
       const reqOptions = {
-        hostname: 'api.resend.com',
-        path: '/emails',
+        hostname: 'api.brevo.com',
+        path: '/v3/smtp/email',
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.RESEND_API_KEY.trim()}`,
+          'api-key': process.env.BREVO_API_KEY.trim(),
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           'Content-Length': Buffer.byteLength(postData),
         },
       };
@@ -46,7 +47,7 @@ const sendMailWrapper = async (options) => {
           if (res.statusCode >= 200 && res.statusCode < 300) {
             resolve(JSON.parse(data));
           } else {
-            reject(new Error(`Resend API error: ${res.statusCode} - ${data}`));
+            reject(new Error(`Brevo API error: ${res.statusCode} - ${data}`));
           }
         });
       });
