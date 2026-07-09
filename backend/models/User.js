@@ -66,6 +66,7 @@ const userSchema = new mongoose.Schema({
     type: String
   },
   reactivationRequest: {
+    requestType: { type: String, enum: ['Reactivation', 'Deletion'], default: 'Reactivation' },
     requestedAt: { type: Date },
     reason: { type: String },
     status: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' }

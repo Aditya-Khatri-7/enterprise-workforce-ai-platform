@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useContext } from 'react';
 import api from '../services/api';
 import { DemoContext } from '../context/DemoContext';
+import { AuthContext } from '../context/AuthContext';
 import { History, Calendar, CheckCircle, Clock } from 'lucide-react';
 
 const EmployeeHistory = () => {
   const { isDemoMode } = useContext(DemoContext);
+  const { user } = useContext(AuthContext);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -17,7 +19,7 @@ const EmployeeHistory = () => {
         { id: 3, action: 'PROJECT_JOINED', target: 'Employee Portal v2', date: '2026-05-20', desc: 'Assigned to core development under Arjun Mehta.' }
       ]);
       setLoading(false);
-    } else {
+    } else if (user) {
       // Fetch user's audit logs from API
       api.get('/audit')
         .then(res => {
@@ -32,7 +34,7 @@ const EmployeeHistory = () => {
         .catch(() => {})
         .finally(() => setLoading(false));
     }
-  }, [isDemoMode]);
+  }, [isDemoMode, user]);
 
   if (loading) {
     return <div className="h-64 flex items-center justify-center text-cyan-400">Loading History Log...</div>;

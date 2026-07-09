@@ -420,7 +420,7 @@ const SuperAdminDashboard = () => {
 
   // Pending reactivation requests from Org Admins
   const pendingReactivationRequests = users.filter(u => 
-    u.status === 'Deactivation_Requested' && 
+    (u.status === 'Deactivation_Requested' || u.status === 'Suspended') && 
     u.role?.name === 'Organization Admin'
   );
 
@@ -727,16 +727,17 @@ const SuperAdminDashboard = () => {
       {activeTab === 'reactivations' && (
         <div className="glass-card border border-purple-200 dark:border-purple-500/20 rounded-2xl p-5">
           <h3 className="text-xs font-black text-purple-700 dark:text-purple-400 uppercase tracking-widest mb-4">
-            Pending Reactivation Requests (Org Admins)
+            Pending Reactivation & Deletion Requests (Org Admins)
           </h3>
           {pendingReactivationRequests.length === 0 ? (
-            <p className="text-xs text-slate-450 italic py-8 text-center">No pending reactivation requests from Org Admins.</p>
+            <p className="text-xs text-slate-455 italic py-8 text-center">No pending reactivation or deletion requests from Org Admins.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
                 <thead>
                   <tr className="text-slate-500 dark:text-slate-400 text-left">
                     <th className="pb-3 font-semibold">User</th>
+                    <th className="pb-3 font-semibold">Type</th>
                     <th className="pb-3 font-semibold">Reason</th>
                     <th className="pb-3 font-semibold">Requested At</th>
                     <th className="pb-3 font-semibold text-right">Actions</th>
@@ -749,22 +750,46 @@ const SuperAdminDashboard = () => {
                         <div className="font-bold text-slate-900 dark:text-white">{req.username}</div>
                         <div className="text-[10px] text-slate-500 font-mono">{req.email}</div>
                       </td>
-                      <td className="py-3 text-slate-350">{req.reactivationRequest?.reason}</td>
+                      <td className="py-3">
+                        {req.status === 'Suspended' ? (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                            Suspended
+                          </span>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${req.reactivationRequest?.requestType === 'Deletion' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
+                            {req.reactivationRequest?.requestType || 'Reactivation'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-355">
+                        {req.status === 'Suspended' ? (req.suspendReason || 'Suspended by superior') : (req.reactivationRequest?.reason || 'Appeal pending')}
+                      </td>
                       <td className="py-3 font-mono">{req.reactivationRequest?.requestedAt ? new Date(req.reactivationRequest.requestedAt).toLocaleString() : 'N/A'}</td>
                       <td className="py-3 text-right">
                         <div className="flex gap-2 justify-end">
-                          <button
-                            onClick={() => handleReviewReactivation(req._id, 'Approve')}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleReviewReactivation(req._id, 'Reject')}
-                            className="bg-red-500 hover:bg-red-650 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
-                          >
-                            Reject
-                          </button>
+                          {req.status === 'Suspended' ? (
+                            <button
+                              onClick={() => handleReviewReactivation(req._id, 'Approve')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                            >
+                              Activate
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleReviewReactivation(req._id, 'Approve')}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleReviewReactivation(req._id, 'Reject')}
+                                className="bg-red-500 hover:bg-red-655 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1479,7 +1504,7 @@ const OrgAdminDashboard = () => {
   };
 
   const hrManagers = users.filter(u => ['HR Manager', 'Auditor'].includes(u.role?.name) && u.status !== 'Deleted');
-  const pendingReactivationRequests = users.filter(u => u.status === 'Deactivation_Requested' && ['HR Manager', 'Auditor'].includes(u.role?.name));
+  const pendingReactivationRequests = users.filter(u => (u.status === 'Deactivation_Requested' || u.status === 'Suspended') && u.role?.name !== 'Organization Admin' && u.role?.name !== 'Super Admin');
 
   return (
     <div className="space-y-6 text-slate-800 dark:text-white">
@@ -1694,16 +1719,18 @@ const OrgAdminDashboard = () => {
       {activeTab === 'reactivations' && (
         <div className="glass-card border border-blue-500/20 rounded-2xl p-5">
           <h3 className="text-xs font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest mb-4">
-            Pending Reactivation Requests (HR Managers)
+            Pending Reactivation & Deletion Requests
           </h3>
           {pendingReactivationRequests.length === 0 ? (
-            <p className="text-xs text-slate-455 italic py-8 text-center">No pending reactivation requests from HR Managers.</p>
+            <p className="text-xs text-slate-455 italic py-8 text-center">No pending reactivation or deletion requests.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
                 <thead>
                   <tr className="text-slate-500 dark:text-slate-400 text-left font-mono">
                     <th className="pb-3 font-semibold">User</th>
+                    <th className="pb-3 font-semibold">Role</th>
+                    <th className="pb-3 font-semibold">Type</th>
                     <th className="pb-3 font-semibold">Reason</th>
                     <th className="pb-3 font-semibold">Requested At</th>
                     <th className="pb-3 font-semibold text-right">Actions</th>
@@ -1716,22 +1743,47 @@ const OrgAdminDashboard = () => {
                         <div className="font-bold text-slate-900 dark:text-white">{req.username}</div>
                         <div className="text-[10px] text-slate-500 font-mono">{req.email}</div>
                       </td>
-                      <td className="py-3 text-slate-350 font-sans">{req.reactivationRequest?.reason}</td>
+                      <td className="py-3 text-blue-655 dark:text-blue-355 font-bold font-mono">{req.role?.name || 'Staff'}</td>
+                      <td className="py-3">
+                        {req.status === 'Suspended' ? (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                            Suspended
+                          </span>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${req.reactivationRequest?.requestType === 'Deletion' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
+                            {req.reactivationRequest?.requestType || 'Reactivation'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-350 font-sans">
+                        {req.status === 'Suspended' ? (req.suspendReason || 'Suspended by superior') : (req.reactivationRequest?.reason || 'Appeal pending')}
+                      </td>
                       <td className="py-3 font-mono">{req.reactivationRequest?.requestedAt ? new Date(req.reactivationRequest.requestedAt).toLocaleString() : 'N/A'}</td>
                       <td className="py-3 text-right font-sans">
                         <div className="flex gap-2 justify-end">
-                          <button
-                            onClick={() => handleReviewReactivation(req._id, 'Approve')}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleReviewReactivation(req._id, 'Reject')}
-                            className="bg-red-500 hover:bg-red-650 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
-                          >
-                            Reject
-                          </button>
+                          {req.status === 'Suspended' ? (
+                            <button
+                              onClick={() => handleReviewReactivation(req._id, 'Approve')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                            >
+                              Activate
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleReviewReactivation(req._id, 'Approve')}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleReviewReactivation(req._id, 'Reject')}
+                                className="bg-red-500 hover:bg-red-650 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2242,7 +2294,7 @@ const HRManagerDashboard = () => {
   );
 
   const pendingReactivationRequests = users.filter(u => 
-    u.status === 'Deactivation_Requested' && 
+    (u.status === 'Deactivation_Requested' || u.status === 'Suspended') && 
     (u.role?.name === 'Employee' || u.role?.name === 'Team Lead')
   );
 
@@ -2558,10 +2610,10 @@ const HRManagerDashboard = () => {
       {activeTab === 'reactivations' && (
         <div className="glass-card border border-teal-500/20 rounded-2xl p-5">
           <h3 className="text-xs font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest mb-4">
-            Pending Reactivation Requests (Employees & Team Leads)
+            Pending Reactivation & Deletion Requests (Employees & Team Leads)
           </h3>
           {pendingReactivationRequests.length === 0 ? (
-            <p className="text-xs text-slate-455 italic py-8 text-center">No pending reactivation requests.</p>
+            <p className="text-xs text-slate-455 italic py-8 text-center">No pending reactivation or deletion requests.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
@@ -2569,6 +2621,7 @@ const HRManagerDashboard = () => {
                   <tr className="text-slate-500 dark:text-slate-400 text-left font-mono">
                     <th className="pb-3 font-semibold">User</th>
                     <th className="pb-3 font-semibold">Role</th>
+                    <th className="pb-3 font-semibold">Type</th>
                     <th className="pb-3 font-semibold">Reason</th>
                     <th className="pb-3 font-semibold">Requested At</th>
                     <th className="pb-3 text-right font-semibold">Actions</th>
@@ -2582,22 +2635,46 @@ const HRManagerDashboard = () => {
                         <div className="text-[10px] text-slate-500 font-mono">{req.email}</div>
                       </td>
                       <td className="py-3 text-teal-650 dark:text-teal-350 font-bold">{req.role?.name || 'Employee'}</td>
-                      <td className="py-3 text-slate-350">{req.reactivationRequest?.reason}</td>
+                      <td className="py-3">
+                        {req.status === 'Suspended' ? (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                            Suspended
+                          </span>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${req.reactivationRequest?.requestType === 'Deletion' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
+                            {req.reactivationRequest?.requestType || 'Reactivation'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-350">
+                        {req.status === 'Suspended' ? (req.suspendReason || 'Suspended by superior') : (req.reactivationRequest?.reason || 'Appeal pending')}
+                      </td>
                       <td className="py-3 font-mono">{req.reactivationRequest?.requestedAt ? new Date(req.reactivationRequest.requestedAt).toLocaleString() : 'N/A'}</td>
                       <td className="py-3 text-right">
                         <div className="flex gap-2 justify-end">
-                          <button
-                            onClick={() => handleReviewReactivation(req._id, 'Approve')}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleReviewReactivation(req._id, 'Reject')}
-                            className="bg-red-500 hover:bg-red-650 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
-                          >
-                            Reject
-                          </button>
+                          {req.status === 'Suspended' ? (
+                            <button
+                              onClick={() => handleReviewReactivation(req._id, 'Approve')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                            >
+                              Activate
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleReviewReactivation(req._id, 'Approve')}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleReviewReactivation(req._id, 'Reject')}
+                                className="bg-red-500 hover:bg-red-655 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -3010,6 +3087,7 @@ const ManagerDashboard = () => {
   const [teamRequests, setTeamRequests] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [teamLeads, setTeamLeads] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -3038,22 +3116,39 @@ const ManagerDashboard = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [projRes, reqRes, teamReqRes, empRes, leavesRes] = await Promise.all([
+      const [projRes, reqRes, teamReqRes, empRes, leavesRes, userRes] = await Promise.all([
         api.get('/projects').catch(() => ({ data: [] })),
         api.get('/projects/requests').catch(() => ({ data: [] })),
         api.get('/projects/team-requests').catch(() => ({ data: [] })),
         api.get('/employees').catch(() => ({ data: [] })),
-        api.get('/leaves').catch(() => ({ data: [] }))
+        api.get('/leaves').catch(() => ({ data: [] })),
+        api.get('/users').catch(() => ({ data: [] }))
       ]);
       setProjects(projRes.data || []);
       setProjectRequests(reqRes.data || []);
       setTeamRequests(teamReqRes.data || []);
       setLeaves(leavesRes.data || []);
+      setUsers(userRes.data || []);
       
       const allEmps = empRes.data || [];
       setEmployees(allEmps);
-      // Filter team leads from designations
-      setTeamLeads(allEmps.filter(e => e.designation?.toLowerCase().includes('lead') || e.designation?.toLowerCase().includes('manager')));
+      // Filter team leads (excluding HR, Managers, Admin, and other non-lead staff roles)
+      const tls = allEmps.filter(e => {
+        const designation = e.designation?.toLowerCase() || '';
+        const role = (e.userRef?.role?.name || e.userRef?.role || '').toLowerCase();
+        
+        const isHR = role.includes('hr') || designation.includes('hr');
+        const isManager = role === 'manager' || role === 'department manager' || (designation.includes('manager') && !designation.includes('lead') && !designation.includes('team'));
+        const isAdmin = role.includes('admin') || designation.includes('admin');
+        const isOtherStaff = ['auditor', 'finance', 'it administrator'].includes(role) || ['auditor', 'finance', 'it'].some(s => designation.includes(s));
+        
+        if (isHR || isManager || isAdmin || isOtherStaff) {
+          return false;
+        }
+        
+        return designation.includes('lead') || role.includes('lead');
+      });
+      setTeamLeads(tls);
     } catch (err) {
       console.error(err);
       toast.error('Failed to retrieve workspace data');
@@ -3255,6 +3350,24 @@ const ManagerDashboard = () => {
     toast.info('Rejected team request');
   };
 
+  const handleReviewReactivation = async (userId, action) => {
+    try {
+      await api.put(`/users/${userId}/reactivation-review`, { action });
+      toast.success(`Request ${action}d successfully.`);
+      const { data } = await api.get('/users');
+      setUsers(data);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to process request.');
+    }
+  };
+
+  const pendingReactivationRequests = useMemo(() => {
+    return users.filter(u => 
+      (u.status === 'Deactivation_Requested' || u.status === 'Suspended') && 
+      (u.role?.name === 'Employee' || u.role?.name === 'Team Lead')
+    );
+  }, [users]);
+
   // Sync data dynamically from progressStore
   const arjunProgress = Math.round(
     ((progressStore['riya_sharma'] || 65) + 
@@ -3367,7 +3480,8 @@ const ManagerDashboard = () => {
           ['projects', 'Projects Workspace'],
           ['project-requests', `Project Requests (${projectRequests.filter(r => r.status.includes('Pending')).length})`],
           ['team-requests', `Team Requests (${teamRequests.filter(r => r.status === 'Pending').length})`],
-          ['leaves', `Leave Claims (${leaves.filter(l => l.status === 'Pending').length})`]
+          ['leaves', `Leave Claims (${leaves.filter(l => l.status === 'Pending').length})`],
+          ['reactivations', `Reactivations & Deletions (${pendingReactivationRequests.length})`]
         ].map(([k, label]) => (
           <button
             key={k}
@@ -3629,18 +3743,98 @@ const ManagerDashboard = () => {
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="font-bold text-slate-900 dark:text-white">{l.name}</p>
-                      <p className="text-[9px] text-slate-500 dark:text-slate-450 mt-0.5">{l.type}</p>
+                      <p className="text-[9px] text-slate-500 dark:text-slate-455 mt-0.5">{l.type}</p>
                     </div>
                     <span className="text-[9px] text-orange-700 dark:text-orange-355 font-semibold font-mono">{l.dates}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 border-t border-slate-200/50 dark:border-[#1F2647]/50 pt-2.5">
-                    <button onClick={() => handleLeaveAction(l.id, 'Approved')} className="bg-emerald-605 hover:bg-emerald-705 text-white font-bold py-1.5 rounded-lg text-[9px] transition-all border-0 cursor-pointer">Approve</button>
+                    <button onClick={() => handleLeaveAction(l.id, 'Approved')} className="bg-emerald-650 hover:bg-emerald-750 text-white font-bold py-1.5 rounded-lg text-[9px] transition-all border-0 cursor-pointer">Approve</button>
                     <button onClick={() => handleLeaveAction(l.id, 'Rejected')} className="bg-red-50 text-white font-bold py-1.5 rounded-lg text-[9px] transition-all border-0 cursor-pointer">Reject</button>
                   </div>
                 </div>
               ))
             )}
           </div>
+        </div>
+      )}
+
+      {/* Reactivations & Deletions Tab */}
+      {activeTab === 'reactivations' && (
+        <div className="glass-card border border-orange-500/20 rounded-2xl p-5">
+          <h3 className="text-xs font-black text-orange-700 dark:text-orange-400 uppercase tracking-widest mb-4">
+            Pending Reactivation & Deletion Requests
+          </h3>
+          {pendingReactivationRequests.length === 0 ? (
+            <p className="text-xs text-slate-455 py-8 text-center italic">No pending reactivation or deletion requests.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
+                <thead>
+                  <tr className="text-slate-500 dark:text-slate-400 text-left font-mono">
+                    <th className="pb-3 font-semibold">User</th>
+                    <th className="pb-3 font-semibold">Role</th>
+                    <th className="pb-3 font-semibold">Type</th>
+                    <th className="pb-3 font-semibold">Reason</th>
+                    <th className="pb-3 font-semibold">Requested At</th>
+                    <th className="pb-3 text-right font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200">
+                  {pendingReactivationRequests.map((req, i) => (
+                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                      <td className="py-3 font-sans">
+                        <div className="font-bold text-slate-900 dark:text-white">{req.username}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">{req.email}</div>
+                      </td>
+                      <td className="py-3 text-orange-655 dark:text-orange-355 font-bold font-mono">{req.role?.name || 'Employee'}</td>
+                      <td className="py-3">
+                        {req.status === 'Suspended' ? (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                            Suspended
+                          </span>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${req.reactivationRequest?.requestType === 'Deletion' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
+                            {req.reactivationRequest?.requestType || 'Reactivation'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-350">
+                        {req.status === 'Suspended' ? (req.suspendReason || 'Suspended by superior') : (req.reactivationRequest?.reason || 'Appeal pending')}
+                      </td>
+                      <td className="py-3 font-mono">{req.reactivationRequest?.requestedAt ? new Date(req.reactivationRequest.requestedAt).toLocaleString() : 'N/A'}</td>
+                      <td className="py-3 text-right font-sans">
+                        <div className="flex gap-2 justify-end">
+                          {req.status === 'Suspended' ? (
+                            <button
+                              onClick={() => handleReviewReactivation(req._id, 'Approve')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                            >
+                              Activate
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleReviewReactivation(req._id, 'Approve')}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleReviewReactivation(req._id, 'Reject')}
+                                className="bg-red-500 hover:bg-red-655 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -5264,6 +5458,7 @@ const ITAdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(!isDemoMode);
+  const [activeLeftTab, setActiveLeftTab] = useState('tickets'); // 'tickets' | 'reactivations'
 
   const fetchITData = async () => {
     try {
@@ -5325,6 +5520,23 @@ const ITAdminDashboard = () => {
       };
     });
   }, [isDemoMode, tickets]);
+
+  const handleReviewReactivation = async (userId, action) => {
+    try {
+      await api.put(`/users/${userId}/reactivation-review`, { action });
+      toast.success(`Request ${action}d successfully.`);
+      await fetchITData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to process request.');
+    }
+  };
+
+  const pendingReactivationRequests = useMemo(() => {
+    return users.filter(u => 
+      (u.status === 'Deactivation_Requested' || u.status === 'Suspended') && 
+      (u.role?.name === 'Employee' || u.role?.name === 'Team Lead')
+    );
+  }, [users]);
 
   const displayResets = useMemo(() => {
     if (isDemoMode) {
@@ -5407,43 +5619,138 @@ const ITAdminDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Tickets queue */}
+        {/* IT Left Column: Tickets and Reactivations */}
         <div className="lg:col-span-2 glass-card border border-red-500/20 rounded-2xl p-5">
-          <h3 className="text-xs font-black text-red-700 dark:text-red-400 uppercase tracking-widest mb-4">Support Ticket Queue</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
-              <thead>
-                <tr className="text-slate-500 dark:text-slate-400 text-left">
-                  <th className="pb-3 font-semibold">Ticket ID</th>
-                  <th className="pb-3 font-semibold">Employee</th>
-                  <th className="pb-3 font-semibold">Category</th>
-                  <th className="pb-3 font-semibold">Priority</th>
-                  <th className="pb-3 font-semibold">Status</th>
-                  <th className="pb-3 font-semibold">Age</th>
-                  <th className="pb-3 font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200 font-sans">
-                {displayTickets.map((t, i) => (
-                  <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
-                    <td className="py-2.5 font-bold text-red-655 dark:text-red-400">{t.id}</td>
-                    <td className="py-2.5 text-slate-900 dark:text-white font-bold">{t.employee}</td>
-                    <td className="py-2.5 font-semibold text-slate-500 dark:text-slate-400">{t.cat}</td>
-                    <td className="py-2.5">
-                      <span className={`px-1.5 py-0.2 rounded font-black text-[8px] tracking-widest uppercase ${t.priority === 'High' ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-yellow-500/10 text-yellow-800 dark:text-yellow-400'}`}>{t.priority}</span>
-                    </td>
-                    <td className="py-2.5"><span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#1A203E] border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 text-[9px] uppercase font-black font-mono">{t.status}</span></td>
-                    <td className="py-2.5 text-slate-500 dark:text-slate-450">{t.age}</td>
-                    <td className="py-2.5">
-                      {t.status !== 'Closed' && t.status !== 'Resolved' ? (
-                        <button onClick={() => handleCloseTicket(t.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold text-[8px] px-2 py-0.5 rounded transition-all border-0 cursor-pointer">Close</button>
-                      ) : <span className="text-slate-450 dark:text-slate-550 italic">Closed</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex border-b border-slate-200 dark:border-indigo-500/20 pb-2 mb-4 gap-4">
+            <button
+              onClick={() => setActiveLeftTab('tickets')}
+              className={`pb-1 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer bg-transparent border-0 ${activeLeftTab === 'tickets' ? 'border-red-500 text-red-655 dark:text-red-400 font-extrabold' : 'border-transparent text-slate-400 hover:text-slate-250'}`}
+            >
+              Support Ticket Queue
+            </button>
+            <button
+              onClick={() => setActiveLeftTab('reactivations')}
+              className={`pb-1 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer relative bg-transparent border-0 ${activeLeftTab === 'reactivations' ? 'border-red-500 text-red-655 dark:text-red-400 font-extrabold' : 'border-transparent text-slate-400 hover:text-slate-250'}`}
+            >
+              Reactivations & Deletions
+              {pendingReactivationRequests.length > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-red-600 text-white animate-pulse">
+                  {pendingReactivationRequests.length}
+                </span>
+              )}
+            </button>
           </div>
+
+          {activeLeftTab === 'tickets' ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
+                <thead>
+                  <tr className="text-slate-500 dark:text-slate-400 text-left">
+                    <th className="pb-3 font-semibold">Ticket ID</th>
+                    <th className="pb-3 font-semibold">Employee</th>
+                    <th className="pb-3 font-semibold">Category</th>
+                    <th className="pb-3 font-semibold">Priority</th>
+                    <th className="pb-3 font-semibold">Status</th>
+                    <th className="pb-3 font-semibold">Age</th>
+                    <th className="pb-3 font-semibold">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200 font-sans">
+                  {displayTickets.map((t, i) => (
+                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                      <td className="py-2.5 font-bold text-red-655 dark:text-red-400">{t.id}</td>
+                      <td className="py-2.5 text-slate-900 dark:text-white font-bold">{t.employee}</td>
+                      <td className="py-2.5 font-semibold text-slate-500 dark:text-slate-400">{t.cat}</td>
+                      <td className="py-2.5">
+                        <span className={`px-1.5 py-0.2 rounded font-black text-[8px] tracking-widest uppercase ${t.priority === 'High' ? 'bg-red-500/10 text-red-605 dark:text-red-400' : 'bg-yellow-500/10 text-yellow-805 dark:text-yellow-400'}`}>{t.priority}</span>
+                      </td>
+                      <td className="py-2.5"><span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#1A203E] border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 text-[9px] uppercase font-black font-mono">{t.status}</span></td>
+                      <td className="py-2.5 text-slate-500 dark:text-slate-450">{t.age}</td>
+                      <td className="py-2.5">
+                        {t.status !== 'Closed' && t.status !== 'Resolved' ? (
+                          <button onClick={() => handleCloseTicket(t.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold text-[8px] px-2 py-0.5 rounded transition-all border-0 cursor-pointer">Close</button>
+                        ) : <span className="text-slate-450 dark:text-slate-550 italic">Closed</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs divide-y divide-slate-100 dark:divide-[#1F2647]">
+                <thead>
+                  <tr className="text-slate-500 dark:text-slate-400 text-left font-mono">
+                    <th className="pb-3 font-semibold">User</th>
+                    <th className="pb-3 font-semibold">Role</th>
+                    <th className="pb-3 font-semibold">Type</th>
+                    <th className="pb-3 font-semibold">Reason</th>
+                    <th className="pb-3 font-semibold">Requested At</th>
+                    <th className="pb-3 text-right font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100/50 dark:divide-[#1F2647]/50 text-slate-700 dark:text-slate-200 font-sans">
+                  {pendingReactivationRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-xs text-slate-455 py-8 text-center italic">No pending reactivation or deletion requests.</td>
+                    </tr>
+                  ) : (
+                    pendingReactivationRequests.map((req, i) => (
+                      <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-[#1E2544]/30">
+                        <td className="py-3">
+                          <div className="font-bold text-slate-900 dark:text-white">{req.username}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">{req.email}</div>
+                        </td>
+                        <td className="py-3 text-red-655 dark:text-red-400 font-bold font-mono">{req.role?.name || 'Employee'}</td>
+                        <td className="py-3">
+                          {req.status === 'Suspended' ? (
+                            <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                              Suspended
+                            </span>
+                          ) : (
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${req.reactivationRequest?.requestType === 'Deletion' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
+                              {req.reactivationRequest?.requestType || 'Reactivation'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 text-slate-350 font-sans">
+                          {req.status === 'Suspended' ? (req.suspendReason || 'Suspended by superior') : (req.reactivationRequest?.reason || 'Appeal pending')}
+                        </td>
+                        <td className="py-3 font-mono">{req.reactivationRequest?.requestedAt ? new Date(req.reactivationRequest.requestedAt).toLocaleString() : 'N/A'}</td>
+                        <td className="py-3 text-right font-sans">
+                          <div className="flex gap-2 justify-end">
+                            {req.status === 'Suspended' ? (
+                              <button
+                                onClick={() => handleReviewReactivation(req._id, 'Approve')}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                              >
+                                Activate
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleReviewReactivation(req._id, 'Approve')}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => handleReviewReactivation(req._id, 'Reject')}
+                                  className="bg-red-500 hover:bg-red-655 text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg cursor-pointer border-0"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Right side actions and resets */}

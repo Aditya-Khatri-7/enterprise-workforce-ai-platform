@@ -34,8 +34,10 @@ export default function EmployeeTickets() {
   };
 
   useEffect(() => {
-    fetchTickets();
-  }, []);
+    if (user) {
+      fetchTickets();
+    }
+  }, [user]);
 
   const handleRaiseTicket = async (e) => {
     e.preventDefault();

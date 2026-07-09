@@ -23,18 +23,20 @@ const ProtectedRoute = () => {
     return <Navigate to="/profile" state={{ forcePasswordChange: true }} replace />;
   }
 
-  // Force suspended users to Account Suspended Page
-  if (user.status === 'Suspended' && location.pathname !== '/account-suspended') {
+  // Force suspended or appeal-pending users to Account Suspended Page
+  const isSuspendedOrAppealing = user.status === 'Suspended' || user.status === 'Deactivation_Requested';
+
+  if (isSuspendedOrAppealing && location.pathname !== '/account-suspended') {
     return <Navigate to="/account-suspended" replace />;
   }
 
-  // Prevent non-suspended users from accessing Account Suspended Page
-  if (user.status !== 'Suspended' && location.pathname === '/account-suspended') {
+  // Prevent non-suspended, non-appealing users from accessing Account Suspended Page
+  if (!isSuspendedOrAppealing && location.pathname === '/account-suspended') {
     return <Navigate to="/dashboard" replace />;
   }
 
   // Force inactive users to Account Status Page
-  if (user.isActive === false && user.status !== 'Suspended' && location.pathname !== '/account-status') {
+  if (user.isActive === false && !isSuspendedOrAppealing && location.pathname !== '/account-status') {
     return <Navigate to="/account-status" replace />;
   }
 

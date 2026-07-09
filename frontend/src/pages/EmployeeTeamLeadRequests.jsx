@@ -22,7 +22,21 @@ export default function EmployeeTeamLeadRequests() {
   const [form, setForm] = useState({ type: 'ChangeTeamLead', requestedTeamLeadId: '', comments: '' });
 
   const currentEmployee = employees.find(e => e.userRef?._id === user?._id || e.userRef === user?._id);
-  const currentTeamLeads = employees.filter(e => e.designation?.toLowerCase().includes('lead') || e.designation?.toLowerCase().includes('manager'));
+  const currentTeamLeads = employees.filter(e => {
+    const designation = e.designation?.toLowerCase() || '';
+    const role = (e.userRef?.role?.name || e.userRef?.role || '').toLowerCase();
+    
+    const isHR = role.includes('hr') || designation.includes('hr');
+    const isManager = role === 'manager' || role === 'department manager' || (designation.includes('manager') && !designation.includes('lead') && !designation.includes('team'));
+    const isAdmin = role.includes('admin') || designation.includes('admin');
+    const isOtherStaff = ['auditor', 'finance', 'it administrator'].includes(role) || ['auditor', 'finance', 'it'].some(s => designation.includes(s));
+    
+    if (isHR || isManager || isAdmin || isOtherStaff) {
+      return false;
+    }
+    
+    return designation.includes('lead') || role.includes('lead');
+  });
 
   const fetchData = async () => {
     try {

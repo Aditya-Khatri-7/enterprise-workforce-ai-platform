@@ -27,11 +27,22 @@ const ManagerTeamLeads = () => {
       setEmployees(allEmps);
       setProjects(projRes.data || []);
 
-      // Filter team leads
-      const tls = allEmps.filter(e => 
-        e.designation?.toLowerCase().includes('lead') || 
-        e.designation?.toLowerCase().includes('manager')
-      );
+      // Filter team leads (excluding HR, Managers, Admin, and other non-lead staff roles)
+      const tls = allEmps.filter(e => {
+        const designation = e.designation?.toLowerCase() || '';
+        const role = (e.userRef?.role?.name || e.userRef?.role || '').toLowerCase();
+        
+        const isHR = role.includes('hr') || designation.includes('hr');
+        const isManager = role === 'manager' || role === 'department manager' || (designation.includes('manager') && !designation.includes('lead') && !designation.includes('team'));
+        const isAdmin = role.includes('admin') || designation.includes('admin');
+        const isOtherStaff = ['auditor', 'finance', 'it administrator'].includes(role) || ['auditor', 'finance', 'it'].some(s => designation.includes(s));
+        
+        if (isHR || isManager || isAdmin || isOtherStaff) {
+          return false;
+        }
+        
+        return designation.includes('lead') || role.includes('lead');
+      });
       setTeamLeads(tls);
     } catch (err) {
       toast.error('Failed to load team leads data');

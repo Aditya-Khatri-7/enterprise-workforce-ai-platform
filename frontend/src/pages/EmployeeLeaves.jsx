@@ -33,8 +33,10 @@ export default function EmployeeLeaves() {
   };
 
   useEffect(() => {
-    fetchLeaves();
-  }, []);
+    if (user) {
+      fetchLeaves();
+    }
+  }, [user]);
 
   const handleApply = async (e) => {
     e.preventDefault();
