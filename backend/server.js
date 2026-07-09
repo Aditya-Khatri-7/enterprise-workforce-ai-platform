@@ -37,7 +37,51 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Security Middlewares
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        "https://www.google.com",
+        "https://www.gstatic.com",
+        "https://accounts.google.com",
+      ],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "https://fonts.googleapis.com",
+      ],
+      fontSrc: [
+        "'self'",
+        "https://fonts.gstatic.com",
+        "data:",
+      ],
+      imgSrc: [
+        "'self'",
+        "data:",
+        "blob:",
+        "https:",
+      ],
+      connectSrc: [
+        "'self'",
+        "https:",
+        "wss:",
+        "ws:",
+      ],
+      frameSrc: [
+        "'self'",
+        "https://www.google.com",
+        "https://accounts.google.com",
+      ],
+      workerSrc: ["'self'", "blob:"],
+      objectSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
 const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
