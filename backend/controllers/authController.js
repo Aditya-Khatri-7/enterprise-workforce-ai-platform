@@ -77,15 +77,13 @@ const login = async (req, res) => {
     const { email, password, recaptchaToken } = req.body;
 
     // --- reCAPTCHA verification ---
-    if (process.env.NODE_ENV === 'production') {
-      if (!recaptchaToken) {
-        return res.status(400).json({ error: 'reCAPTCHA token is missing. Please complete the verification.' });
-      }
+    if (!recaptchaToken) {
+      return res.status(400).json({ error: 'reCAPTCHA token is missing. Please complete the verification.' });
+    }
 
-      const isHuman = await verifyRecaptcha(recaptchaToken);
-      if (!isHuman) {
-        return res.status(400).json({ error: 'reCAPTCHA verification failed. Please try again.' });
-      }
+    const isHuman = await verifyRecaptcha(recaptchaToken);
+    if (!isHuman) {
+      return res.status(400).json({ error: 'reCAPTCHA verification failed. Please try again.' });
     }
     // --- end reCAPTCHA verification ---
 
