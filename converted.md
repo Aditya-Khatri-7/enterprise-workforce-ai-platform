@@ -1,3 +1,23 @@
+What we did 
+see here its showing navigating to workflow but nothing is showing up for hr how hr can do things when nothing is showing up and also in records how can hr have option to suspend himself how this is possible follwo heirarchy 
+
+super admin have every things keep it as it is 
+org admin can see all employees and can do deacitvate , suspend , dleted now HR and dep manager suspension should be in admin hand only 
+hr manager should be able to accept request leave approval , suspension , activation , reuest or any change by employees , and see records and those actions anyone except himself and admins 
+
+now deparment dmanager is handling how work is being done by team leads and emplyoees manage projects and all those works that a deparment manager do accepting team lead change and employee project unselect and select requests ( if emplyoee want to change his project ) 
+and all such tings rating emplyoees in the department ok 
+
+team lead should be able to work with employees and projects and progress, all that work what its doing but should not be able to suspend anyone or any such things which admins org admin or hr can do 
+
+everyone can see records of person working in company but who can do actions with records that i have told you now  finance one can do all work related to finance and auditors can do all work they should do , also auditors should be visible to org admin as well, 
+
+i have added the image where you can see all stakeholders in we have 
+
+
+
+
+
 Enterprise Workforce Management Platform with AI Operations Assistant
 1. Project Overview
 1.1 Introduction
