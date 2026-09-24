@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const User = require('../models/User');
 const Employee = require('../models/Employee');
@@ -22,6 +23,11 @@ const validatePassword = (password) => {
   return null;
 };
 
+// Values that go straight into Mongo queries must be plain strings. Without this check a JSON body such as
+// {"email":{"$ne":null}} becomes a query operator (NoSQL injection) and matches every document.
+const isText = (v) => typeof v === 'string' && v.trim().length > 0;
+const escapeRegex = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
@@ -32,23 +38,24 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (!isText(email) || !isText(password)) {
       return res.status(400).json({ error: 'Email, username, or employee ID and password are required' });
     }
 
     const loginId = email.trim();
+    const safeLoginId = escapeRegex(loginId);
 
     let user = await User.findOne({
       $or: [
         { email: loginId.toLowerCase() },
-        { username: { $regex: new RegExp(`^${loginId}$`, 'i') } }
+        { username: { $regex: new RegExp(`^${safeLoginId}$`, 'i') } }
       ]
     }).populate('role');
 
     if (!user) {
       // Find employee by employeeId (case-insensitive)
       const employee = await Employee.findOne({
-        employeeId: { $regex: new RegExp(`^${loginId}$`, 'i') }
+        employeeId: { $regex: new RegExp(`^${safeLoginId}$`, 'i') }
       });
       if (employee) {
         user = await User.findOne({ employeeRef: employee._id }).populate('role');
@@ -253,14 +260,17 @@ const changePassword = async (req, res) => {
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
+    if (!isText(email)) {
+      return res.status(400).json({ error: 'A valid email is required' });
+    }
     const user = await User.findOne({ email });
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Generate 6 digit OTP
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 6 digit OTP with a cryptographically secure generator (Math.random is predictable)
+    const otpCode = crypto.randomInt(100000, 1000000).toString();
     
     // Store OTP in database
     await Otp.deleteMany({ email }); // Delete old OTPs for this email
@@ -272,13 +282,17 @@ const forgotPassword = async (req, res) => {
     res.json({ message: 'OTP sent to email successfully' });
   } catch (error) {
     console.error('Error in forgotPassword:', error);
-    res.status(500).json({ error: error.message || 'Failed to process request' });
+    res.status(500).json({ error: 'Failed to process request' });
   }
 };
 
 const resetPassword = async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
+
+    if (!isText(email) || !isText(otp) || !isText(newPassword)) {
+      return res.status(400).json({ error: 'Email, OTP and new password are required' });
+    }
 
     const pwdError = validatePassword(newPassword);
     if (pwdError) {

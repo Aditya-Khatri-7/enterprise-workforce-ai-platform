@@ -621,6 +621,12 @@ const changeUserRole = async (req, res) => {
 
     const requesterRole = req.user.role.name;
 
+    // Only an existing Super Admin may grant or hold the Super Admin role — otherwise any
+    // Organization Admin could self-escalate to a global role with no organizational boundary.
+    if (newRole === 'Super Admin' && requesterRole !== 'Super Admin') {
+      return res.status(403).json({ error: 'Forbidden. Only a Super Admin can assign the Super Admin role.' });
+    }
+
     // Enforce organizational boundary
     if (requesterRole !== 'Super Admin') {
       if (targetUser.organization?.toString() !== req.user.organization?.toString()) {
